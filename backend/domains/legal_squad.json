@@ -1,0 +1,42 @@
+{
+  "domain_id": "legal_squad",
+  "description": "A team for drafting contracts, checking compliance, and translating legalese.",
+  "team_roles": [
+    {
+      "role": "Clause_Drafter",
+      "model": "gemma4:31b-dense",
+      "goal": "Draft initial contract terms based on user requirements. Ensure precise legal language.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.3,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Compliance_Checker",
+      "model": "gemma4:31b-dense",
+      "goal": "Verify draft against jurisdiction rules (GDPR/CCPA). Flag any non-compliant clauses.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.2,
+      "max_tokens": 2048
+    },
+    {
+      "role": "Plain_Language_Translator",
+      "model": "gemma4:26b-moe",
+      "goal": "Rewrite complex legal jargon into simple, accessible English while preserving legal accuracy.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.5,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Critic",
+      "model": "gemma4:31b-dense",
+      "goal": "Ensure no contradictions, full compliance, and that plain-language version doesn't lose legal meaning.",
+      "system_prompt_file": "prompts/critic_agent.md",
+      "temperature": 0.2,
+      "max_tokens": 2048
+    }
+  ],
+  "workflow": ["Clause_Drafter", "Compliance_Checker", "Plain_Language_Translator", "Critic"],
+  "parallel_stages": [],
+  "max_retries": 3,
+  "timeout_seconds": 180
+}

@@ -1,0 +1,59 @@
+{
+  "youtube_creator": {
+    "description": "A team dedicated to creating viral video content, scripts, and SEO strategies.",
+    "team_roles": [
+      {
+        "role": "Idea_Generator",
+        "model": "gemma4:26b-moe",
+        "goal": "Generate 3 trending video topics based on user niche."
+      },
+      {
+        "role": "Script_Writer",
+        "model": "gemma4:26b-moe",
+        "goal": "Write a full script with hooks, body, and CTA based on the selected idea."
+      },
+      {
+        "role": "Visual_Director",
+        "model": "gemma4:e2b",
+        "goal": "Create image prompts for thumbnails and a shot-list storyboard."
+      },
+      {
+        "role": "SEO_Specialist",
+        "model": "gemma4:26b-moe",
+        "goal": "Generate titles, tags, and description optimized for search."
+      },
+      {
+        "role": "Critic",
+        "model": "gemma4:31b-dense",
+        "goal": "Review all outputs for tone consistency, engagement potential, and adherence to user preferences."
+      }
+    ],
+    "workflow": ["Idea_Generator", "Script_Writer", "Visual_Director", "SEO_Specialist", "Critic"]
+  },
+  "legal_squad": {
+    "description": "A team for drafting contracts and checking compliance.",
+    "team_roles": [
+      {
+        "role": "Clause_Drafter",
+        "model": "gemma4:31b-dense",
+        "goal": "Draft initial contract terms based on user requirements."
+      },
+      {
+        "role": "Compliance_Checker",
+        "model": "gemma4:31b-dense",
+        "goal": "Verify draft against jurisdiction rules (GDPR/CCPA)."
+      },
+      {
+        "role": "Plain_Language_Translator",
+        "model": "gemma4:26b-moe",
+        "goal": "Rewrite complex legal jargon into simple English."
+      },
+      {
+        "role": "Critic",
+        "model": "gemma4:31b-dense",
+        "goal": "Ensure no contradictions and full compliance."
+      }
+    ],
+    "workflow": ["Clause_Drafter", "Compliance_Checker", "Plain_Language_Translator", "Critic"]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "domain_id": "youtube_creator",
+  "description": "A team dedicated to creating viral video content, scripts, and SEO strategies.",
+  "team_roles": [
+    {
+      "role": "Idea_Generator",
+      "model": "gemma4:26b-moe",
+      "goal": "Generate 3 trending video topics based on user niche. Research current trends and competition.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.9,
+      "max_tokens": 2048
+    },
+    {
+      "role": "Script_Writer",
+      "model": "gemma4:26b-moe",
+      "goal": "Write a full script with hooks, body, and CTA based on the selected idea.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.7,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Visual_Director",
+      "model": "gemma4:e2b",
+      "goal": "Create image prompts for thumbnails and a shot-list storyboard.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.8,
+      "max_tokens": 2048
+    },
+    {
+      "role": "SEO_Specialist",
+      "model": "gemma4:26b-moe",
+      "goal": "Generate titles, tags, and description optimized for search.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.5,
+      "max_tokens": 1024
+    },
+    {
+      "role": "Critic",
+      "model": "gemma4:31b-dense",
+      "goal": "Review all outputs for tone consistency, engagement potential, and adherence to user preferences.",
+      "system_prompt_file": "prompts/critic_agent.md",
+      "temperature": 0.3,
+      "max_tokens": 2048
+    }
+  ],
+  "workflow": ["Idea_Generator", "Script_Writer", "Visual_Director", "SEO_Specialist", "Critic"],
+  "parallel_stages": [
+    ["Visual_Director", "SEO_Specialist"]
+  ],
+  "max_retries": 3,
+  "timeout_seconds": 120
+}
