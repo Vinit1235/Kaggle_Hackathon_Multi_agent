@@ -268,7 +268,16 @@ class TaskBox:
     # ── Audit Log ─────────────────────────────────────────────────────
 
     async def log_action(self, entry: AuditLogEntry) -> None:
-        """Write an entry to the immutable audit log."""
+        """Write an entry to the immutable audit log with data compression."""
+        # ── Phase 4: Log Compression ──
+        # Strip details to essential fields and truncate large strings
+        compressed_details = {}
+        for k, v in entry.details.items():
+            if isinstance(v, str) and len(v) > 200:
+                compressed_details[k] = v[:200] + "... [TRUNCATED]"
+            elif k not in ["raw_response", "full_prompt"]: # Drop massive redundant keys
+                compressed_details[k] = v
+                
         await self._db.execute(
             """
             INSERT INTO audit_log (log_id, session_id, agent_role, action, details,
@@ -277,7 +286,8 @@ class TaskBox:
             """,
             (
                 entry.log_id, entry.session_id, entry.agent_role, entry.action,
-                json.dumps(entry.details), entry.status.value, entry.error_message,
+                json.dumps(compressed_details), entry.status.value, 
+                entry.error_message[:200] + "..." if entry.error_message and len(entry.error_message) > 200 else entry.error_message,
                 entry.token_count, entry.latency_ms, entry.timestamp.isoformat()
             ),
         )

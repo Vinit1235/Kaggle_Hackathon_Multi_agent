@@ -124,27 +124,30 @@ class SemanticCache:
         self.similarity_threshold = 0.85
 
     async def initialize(self) -> bool:
-        """Initialize FAISS index. Returns False if FAISS not available."""
+        """Initialize FAISS index and embedding model. Returns False if unavailable."""
         try:
             import faiss
-            import numpy as np
-            self._dimension = 384  # all-MiniLM-L6-v2 output dim
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer("all-MiniLM-L6-v2")
+            self._dimension = self._model.get_sentence_embedding_dimension()
             self._index = faiss.IndexFlatIP(self._dimension)
             self._initialized = True
-            logger.info("Semantic cache initialized (FAISS)")
+            logger.info("Semantic cache initialized (FAISS + SentenceTransformer)")
             return True
         except ImportError:
-            logger.warning("FAISS not installed — semantic caching disabled")
+            logger.warning("FAISS/SentenceTransformers not installed — semantic caching disabled")
             return False
 
-    async def search(self, query_embedding: Any) -> Optional[dict]:
+    async def search(self, text: str) -> Optional[dict]:
         """Search cache for a similar prompt. Returns cached result or None."""
         if not self._initialized or self._index.ntotal == 0:
             return None
         try:
+            import faiss
             import numpy as np
-            query = np.array([query_embedding], dtype="float32")
-            scores, indices = self._index.search(query, 1)
+            embedding = self._model.encode([text], convert_to_numpy=True)
+            faiss.normalize_L2(embedding)
+            scores, indices = self._index.search(embedding, 1)
             if scores[0][0] >= self.similarity_threshold:
                 idx = int(indices[0][0])
                 return self._cache.get(idx)
@@ -152,15 +155,17 @@ class SemanticCache:
             logger.error(f"Semantic cache search failed: {e}")
         return None
 
-    async def store(self, embedding: Any, result: dict) -> None:
-        """Store a new embedding + result in the cache."""
+    async def store(self, text: str, result: dict) -> None:
+        """Store a new text prompt + result in the cache."""
         if not self._initialized:
             return
         try:
+            import faiss
             import numpy as np
-            vec = np.array([embedding], dtype="float32")
+            embedding = self._model.encode([text], convert_to_numpy=True)
+            faiss.normalize_L2(embedding)
             idx = self._index.ntotal
-            self._index.add(vec)
+            self._index.add(embedding)
             self._cache[idx] = result
         except Exception as e:
             logger.error(f"Semantic cache store failed: {e}")

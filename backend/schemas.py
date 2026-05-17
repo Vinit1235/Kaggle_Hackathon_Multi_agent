@@ -153,7 +153,7 @@ class RunWorkflowResponse(BaseModel):
 
 class AgentStatusUpdate(BaseModel):
     """WebSocket message for real-time agent status updates."""
-    _trace_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    trace_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     session_id: str
     agent_role: str
     status: str
@@ -166,6 +166,7 @@ class HealthCheck(BaseModel):
     """Health check response."""
     status: str = "healthy"
     version: str = "1.0.0"
+    proxy_connected: bool = False
     ollama_connected: bool = False
     redis_connected: bool = False
     db_initialized: bool = False

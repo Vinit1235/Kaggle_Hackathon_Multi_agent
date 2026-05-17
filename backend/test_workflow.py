@@ -47,19 +47,27 @@ async def run_dry_test(domain: str, goal: str):
     redis_ok = await memx.connect()
     print(f"  {'✅' if redis_ok else '⚠️'} Redis memX {'connected' if redis_ok else '(fallback mode)'}")
 
-    ollama_ok = await model_router.check_ollama()
-    print(f"  {'✅' if ollama_ok else '❌'} Ollama {'connected' if ollama_ok else 'NOT reachable'}")
+    proxy_ok = await model_router.check_proxy()
+    print(f"  {'✅' if proxy_ok else '⚠️'} Antigravity Proxy {'connected' if proxy_ok else 'NOT reachable'}")
 
-    if not ollama_ok:
-        print("\n❌ Ollama is not running! Please start it with:")
-        print("   ollama serve")
-        print("   ollama pull gemma4:e2b")
+    ollama_ok = await model_router.check_ollama()
+    print(f"  {'✅' if ollama_ok else '⚠️'} Ollama {'connected' if ollama_ok else 'not running (optional fallback)'}")
+
+    if not proxy_ok and not ollama_ok:
+        print("\n❌ No LLM backend available! Please start one:")
+        print("   Proxy:  antigravity-claude-proxy start   (recommended)")
+        print("   Ollama: ollama serve && ollama pull gemma4:e2b")
         await taskbox.close()
         return
 
+    if proxy_ok:
+        print("  🚀 Using Antigravity Proxy as LLM backend")
+    else:
+        print("  🏠 Using Ollama as LLM backend")
+
     # List available models
     models = await model_router.list_local_models()
-    print(f"  📋 Available models: {models}")
+    print(f"  📋 Available models: {models[:6]}")
 
     # Load configs
     config_loader.load_user_preferences()

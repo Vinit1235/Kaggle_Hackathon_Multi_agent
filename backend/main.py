@@ -42,14 +42,19 @@ async def lifespan(app: FastAPI):
     # Initialize core services
     await taskbox.initialize()
     redis_ok = await memx.connect()
-    ollama_ok = await model_router.check_ollama()
+    proxy_ok = await model_router.check_proxy()   # PRIMARY backend
+    ollama_ok = await model_router.check_ollama()  # FALLBACK backend
     await semantic_cache.initialize()
+    
+    from security import security_shield
+    security_shield.initialize()
 
     # Load user preferences (CLAUDE.md Section 2: MUST load at session start)
     config_loader.load_user_preferences()
     config_loader.load_constitution()
 
-    logger.info(f"  Ollama: {'✅' if ollama_ok else '❌'}")
+    logger.info(f"  Proxy:  {'✅' if proxy_ok else '⚠️ not available'}")
+    logger.info(f"  Ollama: {'✅' if ollama_ok else '⚠️ not available (fallback)'}")
     logger.info(f"  Redis:  {'✅' if redis_ok else '⚠️ fallback mode'}")
     logger.info(f"  Domains: {config_loader.list_available_domains()}")
     logger.info("✅ AI Agency Platform ready!")
@@ -78,6 +83,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Observability (Phase 5) ───────────────────────────────────────────
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+    logger.info("OpenTelemetry FastAPI instrumentation enabled.")
+except ImportError:
+    logger.warning("OpenTelemetry not installed. Tracing disabled.")
 
 # ── REST Endpoints ────────────────────────────────────────────────────
 
@@ -85,6 +97,7 @@ app.add_middleware(
 async def health_check():
     """System health check."""
     return HealthCheck(
+        proxy_connected=model_router._proxy_available or False,
         ollama_connected=model_router._ollama_available or False,
         redis_connected=memx.is_connected,
         db_initialized=taskbox._db is not None,
@@ -168,26 +181,35 @@ async def get_audit_log(session_id: str):
     return {"session_id": session_id, "audit_log": logs}
 
 
+from context import context_compactor
+
 @app.get("/api/session/{session_id}/resume")
 async def resume_session(session_id: str):
     """Resume a previous session — load compacted history (Phase 3: Named Sessions)."""
+    
+    tasks = await taskbox.get_tasks_by_session(session_id)
+    if not tasks:
+        raise HTTPException(404, "Session not found in active sessions or database")
+        
+    state = await memx.get_session_state(session_id)
+    
+    # Run context compaction
+    compacted_history = await context_compactor.check_and_compact(session_id, tasks)
+
     if session_id not in active_sessions:
-        # Try to reconstruct from DB
-        tasks = await taskbox.get_tasks_by_session(session_id)
-        if not tasks:
-            raise HTTPException(404, "Session not found in active sessions or database")
-        state = await memx.get_session_state(session_id)
         return {
             "session_id": session_id,
             "status": "resumed",
             "tasks": tasks,
             "agent_states": state,
+            "compacted_history": compacted_history
         }
 
     return {
         "session": active_sessions[session_id].model_dump(),
-        "tasks": await taskbox.get_tasks_by_session(session_id),
-        "agent_states": await memx.get_session_state(session_id),
+        "tasks": tasks,
+        "agent_states": state,
+        "compacted_history": compacted_history
     }
 
 

@@ -74,6 +74,21 @@ class ConfigLoader:
                     "max_tokens": role_config.get("max_tokens", 2048),
                     "system_prompt_file": role_config.get("system_prompt_file", "prompts/worker_agent.md"),
                 }
+        
+        # Fallback for framework-level core agents
+        if agent_role in ["Lead", "Critic", "Synthesizer"]:
+            prompt_files = {
+                "Lead": "prompts/lead_agent.md",
+                "Critic": "prompts/critic_agent.md",
+                "Synthesizer": "prompts/worker_agent.md" # fallback or actual synthesizer prompt
+            }
+            return {
+                "model": "gemma4:26b-moe",  # Stronger model for core roles
+                "temperature": 0.5,
+                "max_tokens": 4096,
+                "system_prompt_file": prompt_files.get(agent_role, "prompts/worker_agent.md")
+            }
+
         raise ValueError(f"Agent role '{agent_role}' not found in domain '{domain.value}'")
 
     def load_prompt(self, prompt_file: str, context: Optional[dict] = None) -> str:
