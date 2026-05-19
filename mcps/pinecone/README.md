@@ -2,7 +2,7 @@
 
 ## Account Details
 - **Index Name:** `agency-rag`
-- **Dimension:** 384 (matches `all-MiniLM-L6-v2`)
+- **Dimension:** 768 (matches `text-embedding-004`)
 - **Metric:** cosine
 - **Cloud:** AWS, Region: us-east-1
 
@@ -13,7 +13,7 @@
 ## Setup
 The index `agency-rag` must be created in Pinecone dashboard:
 1. Go to [app.pinecone.io](https://app.pinecone.io)
-2. Create Index → Name: `agency-rag`, Dimensions: 384, Metric: cosine
+2. Create Index → Name: `agency-rag`, Dimensions: 768, Metric: cosine
 3. Select Serverless → AWS → us-east-1
 
 ## Key (stored in backend/.env)

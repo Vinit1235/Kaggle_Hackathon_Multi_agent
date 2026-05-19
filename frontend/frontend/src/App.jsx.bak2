@@ -1,48 +1,59 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-// Domain definitions — fallback when backend is offline.
-// IDs MUST match backend DomainType enum values exactly.
+// Domain definitions with their agents
 const DOMAINS = [
   {
-    id: 'youtube_creator',
+    id: 'youtube',
     name: 'YouTube Creator',
-    description: 'Create viral video ideas, scripts, thumbnails, and SEO — powered by a specialized creative team.',
+    description: 'Create engaging video content with SEO optimization and audience growth strategies.',
     icon: 'video',
     color: '#ff0000',
-    agents: ['Idea_Generator', 'Script_Writer', 'Visual_Director', 'SEO_Specialist', 'Critic']
+    agents: ['Idea Generator', 'Script Writer', 'SEO Specialist', 'Thumbnail Designer', 'Trend Analyst']
   },
   {
-    id: 'legal_squad',
-    name: 'Legal Squad',
-    description: 'Draft contracts, verify compliance, and translate legal jargon into plain English.',
-    icon: 'scale',
-    color: '#8b5cf6',
-    agents: ['Clause_Drafter', 'Compliance_Checker', 'Plain_Language_Translator', 'Critic']
-  },
-  {
-    id: 'content_marketing',
+    id: 'content',
     name: 'Content Marketing',
-    description: 'Create SEO-optimized blog posts, social media copies, and email campaigns.',
+    description: 'Develop comprehensive content strategies for blogs, social media, and email campaigns.',
     icon: 'edit',
     color: '#6366f1',
-    agents: ['Content_Strategist', 'Blog_Writer', 'Social_Media_Manager', 'Critic']
+    agents: ['Content Strategist', 'Blog Writer', 'Social Media Manager', 'Email Marketing Expert', 'Analytics Specialist']
   },
   {
-    id: 'dev_team',
+    id: 'legal',
+    name: 'Legal Squad',
+    description: 'Handle legal research, contract analysis, and compliance documentation efficiently.',
+    icon: 'scale',
+    color: '#8b5cf6',
+    agents: ['Legal Researcher', 'Contract Analyst', 'Compliance Officer', 'Case Manager', 'Document Reviewer']
+  },
+  {
+    id: 'development',
     name: 'Dev Team',
     description: 'Build, test, and deploy software with code review and architecture planning.',
     icon: 'code',
     color: '#10b981',
-    agents: ['Architect', 'Backend_Engineer', 'Frontend_Developer', 'Critic']
+    agents: ['Backend Engineer', 'Frontend Developer', 'QA Engineer', 'DevOps Specialist', 'Tech Lead']
+  },
+  {
+    id: 'research',
+    name: 'Research Lab',
+    description: 'Conduct deep research, data analysis, and generate comprehensive reports.',
+    icon: 'search',
+    color: '#06b6d4',
+    agents: ['Data Analyst', 'Research Writer', 'Fact Checker', 'Citation Manager', 'Report Editor']
+  },
+  {
+    id: 'business',
+    name: 'Business Consulting',
+    description: 'Strategic planning, market analysis, and business model development.',
+    icon: 'briefcase',
+    color: '#f59e0b',
+    agents: ['Strategy Consultant', 'Market Analyst', 'Financial Planner', 'Risk Assessor', 'Growth Hacker']
   }
 ];
 
 const DOMAIN_META = {
-  'youtube_creator': { name: 'YouTube Creator', icon: 'video', color: '#ff0000' },
-  'legal_squad': { name: 'Legal Squad', icon: 'scale', color: '#8b5cf6' },
-  'content_marketing': { name: 'Content Marketing', icon: 'edit', color: '#6366f1' },
-  'dev_team': { name: 'Dev Team', icon: 'code', color: '#10b981' },
   'youtube': { name: 'YouTube Creator', icon: 'video', color: '#ff0000' },
   'content': { name: 'Content Marketing', icon: 'edit', color: '#6366f1' },
   'legal': { name: 'Legal Squad', icon: 'scale', color: '#8b5cf6' },
@@ -279,65 +290,43 @@ function App() {
   const [feedItems, setFeedItems] = useState([]);
   const [messages, setMessages] = useState([]);
   const [output, setOutput] = useState(null);
-  const [streamBuffer, setStreamBuffer] = useState('');
-  const [streamMessageId, setStreamMessageId] = useState(null);
   const [showDomains, setShowDomains] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [domains, setDomains] = useState([]); // Populated from /api/domains
+  const [domains, setDomains] = useState(DOMAINS); // Default to hardcoded until fetched
   const [sessionId, setSessionId] = useState(null);
-  const [chatHistory, setChatHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('ai_agency_chat_history')) || []; } catch { return []; }
-  });
+  const [chatHistory, setChatHistory] = useState([
+    { id: 1, title: 'YouTube video strategy for tech reviews', date: '2 hours ago', domain: 'youtube' },
+    { id: 2, title: 'Legal contract review for startup', date: 'Yesterday', domain: 'legal' },
+    { id: 3, title: 'React app development project', date: '3 days ago', domain: 'development' },
+    { id: 4, title: 'Market research for SaaS product', date: 'Last week', domain: 'business' },
+    { id: 5, title: 'Content marketing campaign Q1', date: '2 weeks ago', domain: 'content' }
+  ]);
   const [activeChatId, setActiveChatId] = useState(null);
-  const [chatInput, setChatInput] = useState('');
-  const [toastMessage, setToastMessage] = useState(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('ai_agency_user')); } catch { return null; }
+  const [connectionStatus, setConnectionStatus] = useState({
+    gemini: true,
+    redis: true,
+    database: true
   });
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
 
   const feedRef = useRef(null);
   const goalInputRef = useRef(null);
   const wsRef = useRef(null);
-  const streamMessageIdRef = useRef(null);
-  const streamBufferRef = useRef('');
-
-  // Show toast helper
-  const showToast = useCallback((msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  }, []);
-
-  // Persist chatHistory
-  useEffect(() => {
-    localStorage.setItem('ai_agency_chat_history', JSON.stringify(chatHistory));
-  }, [chatHistory]);
 
   // Fetch domains on mount
   useEffect(() => {
     fetch('/api/domains')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+      .then(res => res.json())
       .then(data => {
-        const enhancedDomains = (data.domains || []).map(d => ({
+        const enhancedDomains = data.domains.map(d => ({
           ...d,
           name: DOMAIN_META[d.id]?.name || d.id,
           icon: DOMAIN_META[d.id]?.icon || 'sparkles',
           color: DOMAIN_META[d.id]?.color || '#6366f1',
           agents: d.team_roles || []
         }));
-        setDomains(enhancedDomains.length > 0 ? enhancedDomains : DOMAINS);
+        setDomains(enhancedDomains);
       })
-      .catch(err => {
-        console.error("Failed to fetch domains:", err);
-        setDomains(DOMAINS); // Fallback to hardcoded
-      });
+      .catch(err => console.error("Failed to fetch domains:", err));
   }, []);
 
   // Auto-scroll feed
@@ -360,20 +349,13 @@ function App() {
     setFeedItems(prev => [...prev, { type, agent, message, timestamp, id: Date.now() + Math.random() }]);
   }, []);
 
-  const addMessage = useCallback((type, content, options = {}) => {
+  const addMessage = useCallback((type, content) => {
     setMessages(prev => [...prev, {
-      id: options.id ?? (Date.now() + Math.random()),
+      id: Date.now() + Math.random(),
       type,
       content,
-      streaming: options.streaming ?? false,
       timestamp: new Date().toLocaleTimeString()
     }]);
-  }, []);
-
-  const updateMessageContent = useCallback((id, content, streaming = false) => {
-    setMessages(prev => prev.map(msg => (
-      msg.id === id ? { ...msg, content, streaming } : msg
-    )));
   }, []);
 
   const updateAgentStatus = useCallback((agentName, status, task) => {
@@ -397,110 +379,41 @@ function App() {
   }, []);
 
   const handleWsEvent = useCallback((event) => {
-    const agent = event.agent || 'System';
-    const msg = event.message || '';
-
-    switch (event.type) {
-      case 'error':
-        addFeedItem('error', agent, msg || 'An error occurred.');
-        if (agent !== 'System') updateAgentStatus(agent, 'error', msg);
-        break;
-
-      case 'status':
-        addFeedItem('system', agent, msg);
-        if (agent !== 'System') updateAgentStatus(agent, 'working', msg);
-        break;
-
-      case 'task_complete':
-        addFeedItem('success', agent, msg);
-        if (agent !== 'System') updateAgentStatus(agent, 'completed', msg);
-        break;
-
-      case 'review':
-        addFeedItem(
-          event.verdict === 'approved' ? 'success' : 'warning',
-          agent, msg
-        );
-        break;
-
-      case 'stream_start': {
-        const newId = Date.now() + Math.random();
-        setStreamBuffer('');
-        setStreamMessageId(newId);
-        streamMessageIdRef.current = newId;
-        streamBufferRef.current = '';
-        addMessage('ai', '', { id: newId, streaming: true });
-        setOutput({
-          title: 'Final Deliverable',
-          summary: 'Streaming response...',
-          sections: [{ title: 'Result', items: [''] }],
-          streaming: true
-        });
-        break;
-      }
-
-      case 'stream': {
-        const token = event.content || msg || '';
-        setStreamBuffer(prev => {
-          const next = prev + token;
-          const activeId = streamMessageIdRef.current;
-          streamBufferRef.current = next;
-          if (activeId) {
-            updateMessageContent(activeId, next, true);
-          }
-          setOutput({
-            title: 'Final Deliverable',
-            summary: 'Streaming response...',
-            sections: [{ title: 'Result', items: [next] }],
-            streaming: true
-          });
-          return next;
-        });
-        break;
-      }
-
-      case 'stream_end': {
-        const activeId = streamMessageIdRef.current;
-        if (activeId) {
-          updateMessageContent(activeId, streamBufferRef.current, false);
+    if (event.type === 'error') {
+      addFeedItem('error', event.agent || 'System', event.message || 'An error occurred.');
+      if (event.agent) updateAgentStatus(event.agent, 'error', event.message);
+    } else if (event.type === 'workflow_completed' || event.type === 'completion') {
+      setIsRunning(false);
+      
+      let finalSummary = 'The AI agency has finished processing your request.';
+      let resultOutput = event.output || event.message || 'Task completed successfully.';
+      
+      try {
+        if (typeof event.output === 'object') {
+           resultOutput = JSON.stringify(event.output, null, 2);
         }
-        setStreamMessageId(null);
-        streamMessageIdRef.current = null;
-        break;
+      } catch (e) {}
+
+      setOutput({
+        title: 'Workflow Completed',
+        summary: finalSummary,
+        sections: [
+           { title: 'Result', items: [resultOutput] }
+        ]
+      });
+      addMessage('ai', 'Task completed successfully! Check the final output.');
+      wsRef.current?.close();
+    } else {
+      const agent = event.agent || 'System';
+      const msg = event.message || event.task || JSON.stringify(event);
+      addFeedItem(event.type === 'agent_started' ? 'success' : 'agent', agent, msg);
+      
+      if (agent && agent !== 'System') {
+        const status = event.type === 'agent_completed' ? 'completed' : 'working';
+        updateAgentStatus(agent, status, msg);
       }
-
-      case 'final_output': {
-        addFeedItem('success', agent, msg);
-        const content = event.content || msg;
-        setOutput({
-          title: 'Final Deliverable',
-          summary: 'The AI agency has finished processing your request.',
-          sections: [{ title: 'Result', items: [content] }]
-        });
-        const activeId = streamMessageIdRef.current;
-        if (activeId) {
-          updateMessageContent(activeId, content, false);
-          setStreamMessageId(null);
-          streamMessageIdRef.current = null;
-        } else {
-          addMessage('ai', content.length > 500 ? content.substring(0, 500) + '...' : content);
-        }
-        break;
-      }
-
-      case 'workflow_complete':
-        addFeedItem('system', 'System', 'Workflow complete!');
-        setIsRunning(false);
-        wsRef.current?.close();
-        break;
-
-      // Fallback for any unrecognized event types
-      default:
-        addFeedItem('agent', agent, msg || JSON.stringify(event));
-        if (agent !== 'System') updateAgentStatus(agent, 'working', msg);
-        break;
     }
-  }, [addFeedItem, addMessage, updateAgentStatus, updateMessageContent]);
+  }, [updateAgentStatus]); // omitted addFeedItem & addMessage since they are used but not memoized yet, wait, let's use them directly without dependency warning or just rely on react's state
 
   const connectWebSocket = useCallback((sid) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -535,23 +448,9 @@ function App() {
     setAgents([]);
     setMessages([]);
     setOutput(null);
-    setStreamBuffer('');
-    setStreamMessageId(null);
-    streamMessageIdRef.current = null;
-    streamBufferRef.current = '';
 
     addFeedItem('system', 'System', `Launching team for: "${goal}"`);
     addMessage('user', goal);
-
-    // Save to chat history
-    const historyEntry = {
-      id: Date.now(),
-      title: goal.length > 60 ? goal.substring(0, 60) + '...' : goal,
-      date: 'Just now',
-      domain: selectedDomain
-    };
-    setChatHistory(prev => [historyEntry, ...prev]);
-    setActiveChatId(historyEntry.id);
 
     try {
       const response = await fetch('/api/run', {
@@ -560,10 +459,7 @@ function App() {
         body: JSON.stringify({ domain: selectedDomain, user_goal: goal })
       });
       
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`Backend error (${response.status}): ${errBody}`);
-      }
+      if (!response.ok) throw new Error('Failed to start workflow');
       
       const data = await response.json();
       setSessionId(data.session_id);
@@ -576,123 +472,8 @@ function App() {
   };
 
   // Clear feed
-  const clearFeed = () => setFeedItems([]);
-
-  // Delete a chat history item
-  const deleteHistoryItem = (e, chatId) => {
-    e.stopPropagation();
-    setChatHistory(prev => prev.filter(c => c.id !== chatId));
-    if (activeChatId === chatId) setActiveChatId(null);
-  };
-
-  // Export output as text file
-  const exportOutput = () => {
-    if (!output) return;
-    const text = `${output.title}\n\n${output.summary}\n\n${output.sections.map(s => `${s.title}:\n${s.items.map(i => `- ${i}`).join('\n')}`).join('\n\n')}`;
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${output.title.replace(/\s+/g, '_')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Handle chat follow-up send
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || !sessionId) return;
-    const msg = chatInput.trim();
-    setChatInput('');
-    
-    addMessage('user', msg);
-    addFeedItem('user', 'You', msg);
-    
-    try {
-      addMessage('ai', 'Processing follow-up request...');
-      setIsRunning(true);
-      
-      const response = await fetch('/api/followup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          session_id: sessionId, 
-          message: msg,
-          user_preferences: {} // Can pull from context if needed
-        })
-      });
-      
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`Followup error (${response.status}): ${errBody}`);
-      }
-      
-      const data = await response.json();
-      setSessionId(data.session_id); // UI will reconnect to the new session
-      
-      // Keep feed clean for the new iteration
-      setFeedItems([]);
-      setAgents([]);
-      
-    } catch (err) {
-      addMessage('error', `Failed to send follow-up: ${err.message}`);
-      setIsRunning(false);
-    }
-  };
-
-  // Auth handlers
-  const handleAuthSuccess = (session) => {
-    const email = session?.user?.email || '';
-    const name = email ? email.split('@')[0] : 'User';
-    const userData = {
-      id: session?.user?.id || '',
-      email,
-      name,
-      plan: 'Free Plan',
-      access_token: session?.access_token || '',
-      refresh_token: session?.refresh_token || ''
-    };
-    setUser(userData);
-    localStorage.setItem('ai_agency_user', JSON.stringify(userData));
-    setShowAuthModal(false);
-    setAuthPassword('');
-    setAuthError('');
-    showToast(`Welcome, ${name}!`);
-  };
-
-  const submitAuth = async (mode) => {
-    if (!authEmail.trim() || !authPassword.trim()) {
-      setAuthError('Email and password are required.');
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword })
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(errBody || 'Authentication failed');
-      }
-
-      const data = await response.json();
-      handleAuthSuccess(data);
-    } catch (err) {
-      setAuthError(err.message || 'Authentication failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('ai_agency_user');
-    showToast('Logged out successfully.');
+  const clearFeed = () => {
+    setFeedItems([]);
   };
 
   // Copy output
@@ -712,7 +493,6 @@ function App() {
 
   // Start new chat
   const startNewChat = () => {
-    if (wsRef.current) wsRef.current.close();
     setAgents([]);
     setFeedItems([]);
     setMessages([]);
@@ -720,12 +500,6 @@ function App() {
     setGoal('');
     setSelectedDomain(null);
     setActiveChatId(null);
-    setSessionId(null);
-    setIsRunning(false);
-    setStreamBuffer('');
-    setStreamMessageId(null);
-    streamMessageIdRef.current = null;
-    streamBufferRef.current = '';
   };
 
   // Select chat from history
@@ -801,7 +575,7 @@ function App() {
                   <div className="history-item-meta">{chat.date}</div>
                 </div>
                 <div className="history-item-actions">
-                  <button className="history-action-btn" title="Delete" onClick={(e) => deleteHistoryItem(e, chat.id)}>
+                  <button className="history-action-btn" title="Delete">
                     {Icons.trash}
                   </button>
                 </div>
@@ -811,20 +585,20 @@ function App() {
         </div>
 
         <div className="sidebar-footer">
-          <div className="sidebar-user" onClick={() => user ? handleLogout() : setShowAuthModal(true)}>
+          <div className="sidebar-user">
             <div className="user-avatar">
               {Icons.user}
             </div>
             <div className="user-info">
-              <div className="user-name">{user?.name || 'Guest'}</div>
-              <div className="user-plan">{user ? 'Click to log out' : 'Click to log in'}</div>
+              <div className="user-name">Demo User</div>
+              <div className="user-plan">Free Plan</div>
             </div>
           </div>
         </div>
       </aside>
 
       {/* Main App Container */}
-      <div className={`app-container ${sidebarOpen ? '' : 'sidebar-collapsed'} ${(isRunning || agents.length > 0 || output) ? 'workspace-mode' : ''}`}>
+      <div className="app-container">
         {/* Main Content Area */}
         <main className="main-content">
           <nav className="nav-bar">
@@ -836,22 +610,16 @@ function App() {
             </div>
 
             <div className="nav-links">
-              <button className="nav-link" onClick={() => showToast('Solutions — coming soon')}>Solutions</button>
-              <button className="nav-link" onClick={() => showToast('Resources — coming soon')}>Resources</button>
-              <button className="nav-link" onClick={() => showToast('Community — coming soon')}>Community</button>
-              <button className="nav-link" onClick={() => showToast('Enterprise — coming soon')}>Enterprise</button>
-              <button className="nav-link" onClick={() => showToast('Pricing — coming soon')}>Pricing</button>
+              <button className="nav-link">Solutions</button>
+              <button className="nav-link">Resources</button>
+              <button className="nav-link">Community</button>
+              <button className="nav-link">Enterprise</button>
+              <button className="nav-link">Pricing</button>
             </div>
 
             <div className="nav-actions">
-              {user ? (
-                <button className="btn-nav-secondary" onClick={handleLogout}>Log out</button>
-              ) : (
-                <>
-                  <button className="btn-nav-secondary" onClick={() => setShowAuthModal(true)}>Log in</button>
-                  <button className="btn-nav-primary" onClick={() => setShowAuthModal(true)}>Get started</button>
-                </>
-              )}
+              <button className="btn-nav-secondary">Log in</button>
+              <button className="btn-nav-primary">Get started</button>
             </div>
 
             <button className="nav-mobile-toggle">
@@ -861,15 +629,14 @@ function App() {
 
           {/* Hero Section with Central Prompt */}
           <section className="hero-section">
-            <div className="hero-landing">
-              <div className="hero-badge">
-                <span>New:</span> Multi-Agent Collaboration System
-              </div>
-              <h1 className="hero-title">Build something extraordinary</h1>
-              <p className="hero-subtitle">Assemble a team of specialized AI agents that collaborate in real-time to bring your ideas to life</p>
+            <div className="hero-badge">
+              <span>New:</span> Multi-Agent Collaboration System
             </div>
 
-            {/* Central Prompt Input */}
+            <h1 className="hero-title">Build something extraordinary</h1>
+            <p className="hero-subtitle">Assemble a team of specialized AI agents that collaborate in real-time to bring your ideas to life</p>
+
+            {/* Central Prompt Input - Lovable Style */}
             <div className="central-prompt">
               <div className="prompt-input-wrapper">
                 {/* Domain Selector */}
@@ -918,10 +685,10 @@ function App() {
 
                 {/* Prompt Actions */}
                 <div className="prompt-actions">
-                  <button className="prompt-action" title="Attach files" onClick={() => showToast('File attach — coming soon')}>
+                  <button className="prompt-action" title="Attach files">
                     {Icons.plus}
                   </button>
-                  <button className="prompt-action" title="Voice input" onClick={() => showToast('Voice input — coming soon')}>
+                  <button className="prompt-action" title="Voice input">
                     {Icons.mic}
                   </button>
                   <button
@@ -950,138 +717,129 @@ function App() {
             </div>
           </section>
 
-          {/* Workspace Panels — structured layout for active workflows */}
-          {(agents.length > 0 || feedItems.length > 0) && (
-            <div className="workspace-panels">
-              {/* Agent Dashboard Panel */}
-              {agents.length > 0 && (
-                <section className="agents-section">
-                  <div className="section-header">
-                    <div className="section-icon">
-                      {Icons.users}
-                    </div>
-                    <div>
-                      <h2 className="section-title">Agent Team</h2>
-                      <p className="section-subtitle">
-                        {agents.filter(a => a.status === 'completed').length}/{agents.length} complete
-                      </p>
-                    </div>
-                    {isRunning && <div className="section-status-live"><span className="pulse-dot" />Running</div>}
-                  </div>
+          {/* Agent Dashboard */}
+          {agents.length > 0 && (
+            <section className="agents-section">
+              <div className="section-header">
+                <div className="section-icon">
+                  {Icons.users}
+                </div>
+                <div>
+                  <h2 className="section-title">Agent Team Dashboard</h2>
+                  <p className="section-subtitle">Real-time agent activity and status monitoring</p>
+                </div>
+              </div>
 
-                  <div className="agent-grid">
-                    {agents.map((agent, index) => (
+              <div className="agent-grid">
+                {agents.map((agent, index) => (
+                  <div
+                    key={agent.id}
+                    className={`agent-card ${agent.status} ${agent.isNew ? 'spawning' : ''}`}
+                  >
+                    <div className="agent-status">{agent.status}</div>
+                    <div className="agent-header">
                       <div
-                        key={agent.id}
-                        className={`agent-card ${agent.status} ${agent.isNew ? 'spawning' : ''}`}
+                        className="agent-avatar"
+                        style={{ backgroundColor: agent.color }}
                       >
-                        <div className="agent-card-top">
-                          <div className="agent-header">
-                            <div
-                              className="agent-avatar"
-                              style={{ backgroundColor: agent.color }}
-                            >
-                              {agent.name.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <div className="agent-info">
-                              <h4>{agent.name.replace(/_/g, ' ')}</h4>
-                              <span>Agent #{index + 1}</span>
-                            </div>
-                          </div>
-                          <div className={`agent-status-badge ${agent.status}`}>{agent.status}</div>
-                        </div>
-                        <p className="agent-task">{agent.task}</p>
-                        <div className="agent-progress">
-                          <div className="progress-bar">
-                            <div
-                              className="progress-fill"
-                              style={{ width: agent.status === 'completed' ? '100%' : agent.status === 'working' ? '60%' : agent.status === 'error' ? '100%' : '20%' }}
-                            />
-                          </div>
-                          <span className="progress-text">
-                            {agent.status === 'completed' ? 'Complete' : agent.status === 'working' ? 'Processing...' : agent.status === 'error' ? 'Failed' : 'Initializing...'}
-                          </span>
-                        </div>
+                        {agent.name.split(' ').map(n => n[0]).join('')}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Live Feed Panel */}
-              {feedItems.length > 0 && (
-                <section className="feed-section">
-                  <div className="feed-container">
-                    <div className="feed-header">
-                      <div className="feed-title">
-                        {Icons.terminal}
-                        <h3>Live Activity</h3>
-                        {isRunning && <span className="feed-badge">Live</span>}
-                      </div>
-                      <div className="feed-actions">
-                        <button onClick={clearFeed} title="Clear feed">
-                          {Icons.trash}
-                        </button>
+                      <div className="agent-info">
+                        <h4>{agent.name}</h4>
+                        <span>Agent #{index + 1}</span>
                       </div>
                     </div>
-                    <div className="feed-content" ref={feedRef}>
-                      {feedItems.map(item => (
-                        <div key={item.id} className={`feed-item ${item.type}`}>
-                          <span className="feed-timestamp">{item.timestamp}</span>
-                          {item.agent !== 'System' && (
-                            <span className="feed-agent">{item.agent}:</span>
-                          )}
-                          <span className="feed-message">{item.message}</span>
-                        </div>
-                      ))}
+                    <p className="agent-task">{agent.task}</p>
+                    <div className="agent-progress">
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ width: agent.status === 'completed' ? '100%' : agent.status === 'working' ? '60%' : '20%' }}
+                        />
+                      </div>
+                      <span className="progress-text">
+                        {agent.status === 'completed' ? 'Complete' : agent.status === 'working' ? 'Processing...' : 'Initializing...'}
+                      </span>
                     </div>
                   </div>
-                </section>
-              )}
-            </div>
+                ))}
+              </div>
+            </section>
           )}
 
-          {/* Chat Interface — only when messages exist */}
-          {messages.length > 0 && (
-            <section className="chat-section">
-              <div className="chat-container">
-                <div className="chat-messages">
-                  {messages.map(msg => (
-                    <div key={msg.id} className={`chat-message ${msg.type}`}>
-                      <div className={`message-avatar ${msg.type === 'user' ? 'user-avatar' : 'ai-avatar'}`}>
-                        {msg.type === 'user' ? Icons.user : Icons.bot}
-                      </div>
-                      <div className="message-content">
-                        <span className="message-sender">
-                          {msg.type === 'user' ? 'You' : 'AI Agency Team'}
-                        </span>
-                        <div className="message-text">
-                          {msg.content.split('\n').map((line, i) => (
-                            <p key={i}>{line}</p>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="chat-input-area">
-                  <div className="chat-input-wrapper">
-                    <textarea
-                      className="chat-input"
-                      placeholder="Continue the conversation..."
-                      rows={1}
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
-                    />
-                    <button className="btn-send" onClick={handleChatSend} disabled={!chatInput.trim()}>
-                      {Icons.send}
+          {/* Live Feed Section */}
+          {feedItems.length > 0 && (
+            <section className="feed-section">
+              <div className="feed-container">
+                <div className="feed-header">
+                  <div className="feed-title">
+                    {Icons.terminal}
+                    <h3>Live Agent Feed</h3>
+                    <span className="feed-badge">Live</span>
+                  </div>
+                  <div className="feed-actions">
+                    <button onClick={clearFeed} title="Clear feed">
+                      {Icons.copy}
                     </button>
                   </div>
+                </div>
+                <div className="feed-content" ref={feedRef}>
+                  {feedItems.map(item => (
+                    <div key={item.id} className={`feed-item ${item.type}`}>
+                      <span className="feed-timestamp">{item.timestamp}</span>
+                      {item.agent !== 'System' && (
+                        <span className="feed-agent">{item.agent}:</span>
+                      )}
+                      <span className="feed-message">{item.message}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </section>
           )}
+
+          {/* Chat Interface */}
+          <section className="chat-section">
+            <div className="chat-container">
+              <div className="chat-messages">
+                {messages.length === 0 && (
+                  <div className="chat-empty">
+                    {Icons.bot}
+                    <p>Your AI team is ready to collaborate</p>
+                  </div>
+                )}
+                {messages.map(msg => (
+                  <div key={msg.id} className={`chat-message ${msg.type}`}>
+                    <div className={`message-avatar ${msg.type === 'user' ? 'user-avatar' : 'ai-avatar'}`}>
+                      {msg.type === 'user' ? Icons.user : Icons.bot}
+                    </div>
+                    <div className="message-content">
+                      <span className="message-sender">
+                        {msg.type === 'user' ? 'You' : 'AI Agency Team'}
+                      </span>
+                      <div className="message-text">
+                        {msg.content.split('\n').map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="chat-input-area">
+                <div className="chat-input-wrapper">
+                  <textarea
+                    className="chat-input"
+                    placeholder="Continue the conversation..."
+                    rows={1}
+                  />
+                  <button className="btn-send" disabled>
+                    {Icons.send}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* Output Section */}
           {output && (
@@ -1113,9 +871,9 @@ function App() {
                     {Icons.copy}
                     Copy to Clipboard
                   </button>
-                  <button className="btn-action" onClick={exportOutput}>
+                  <button className="btn-action">
                     {Icons.download}
-                    Export as Text
+                    Export as PDF
                   </button>
                 </div>
               </div>
@@ -1123,67 +881,6 @@ function App() {
           )}
         </main>
       </div>
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="toast-notification">
-          {toastMessage}
-        </div>
-      )}
-
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Welcome to AI Agency</h3>
-              <button className="modal-close" onClick={() => setShowAuthModal(false)}>{Icons.x}</button>
-            </div>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              submitAuth('login');
-            }}>
-              <input
-                name="email"
-                type="email"
-                className="modal-input"
-                placeholder="Email address"
-                autoFocus
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                required
-              />
-              <input
-                name="password"
-                type="password"
-                className="modal-input"
-                placeholder="Password"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                required
-              />
-              {authError && <div className="modal-error">{authError}</div>}
-              <div className="modal-actions">
-                <button
-                  type="submit"
-                  className="modal-submit"
-                  disabled={authLoading}
-                >
-                  {authLoading ? 'Working...' : 'Log in'}
-                </button>
-                <button
-                  type="button"
-                  className="modal-secondary"
-                  onClick={() => submitAuth('register')}
-                  disabled={authLoading}
-                >
-                  Sign up
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   );
 }

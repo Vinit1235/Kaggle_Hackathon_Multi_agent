@@ -1,48 +1,61 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-// Domain definitions — fallback when backend is offline.
-// IDs MUST match backend DomainType enum values exactly.
+// Domain definitions with their agents
 const DOMAINS = [
   {
-    id: 'youtube_creator',
+    id: 'youtube',
     name: 'YouTube Creator',
-    description: 'Create viral video ideas, scripts, thumbnails, and SEO — powered by a specialized creative team.',
+    description: 'Create engaging video content with SEO optimization and audience growth strategies.',
     icon: 'video',
     color: '#ff0000',
-    agents: ['Idea_Generator', 'Script_Writer', 'Visual_Director', 'SEO_Specialist', 'Critic']
+    agents: ['Idea Generator', 'Script Writer', 'SEO Specialist', 'Thumbnail Designer', 'Trend Analyst']
   },
   {
-    id: 'legal_squad',
-    name: 'Legal Squad',
-    description: 'Draft contracts, verify compliance, and translate legal jargon into plain English.',
-    icon: 'scale',
-    color: '#8b5cf6',
-    agents: ['Clause_Drafter', 'Compliance_Checker', 'Plain_Language_Translator', 'Critic']
-  },
-  {
-    id: 'content_marketing',
+    id: 'content',
     name: 'Content Marketing',
-    description: 'Create SEO-optimized blog posts, social media copies, and email campaigns.',
+    description: 'Develop comprehensive content strategies for blogs, social media, and email campaigns.',
     icon: 'edit',
     color: '#6366f1',
-    agents: ['Content_Strategist', 'Blog_Writer', 'Social_Media_Manager', 'Critic']
+    agents: ['Content Strategist', 'Blog Writer', 'Social Media Manager', 'Email Marketing Expert', 'Analytics Specialist']
   },
   {
-    id: 'dev_team',
+    id: 'legal',
+    name: 'Legal Squad',
+    description: 'Handle legal research, contract analysis, and compliance documentation efficiently.',
+    icon: 'scale',
+    color: '#8b5cf6',
+    agents: ['Legal Researcher', 'Contract Analyst', 'Compliance Officer', 'Case Manager', 'Document Reviewer']
+  },
+  {
+    id: 'development',
     name: 'Dev Team',
     description: 'Build, test, and deploy software with code review and architecture planning.',
     icon: 'code',
     color: '#10b981',
-    agents: ['Architect', 'Backend_Engineer', 'Frontend_Developer', 'Critic']
+    agents: ['Backend Engineer', 'Frontend Developer', 'QA Engineer', 'DevOps Specialist', 'Tech Lead']
+  },
+  {
+    id: 'research',
+    name: 'Research Lab',
+    description: 'Conduct deep research, data analysis, and generate comprehensive reports.',
+    icon: 'search',
+    color: '#06b6d4',
+    agents: ['Data Analyst', 'Research Writer', 'Fact Checker', 'Citation Manager', 'Report Editor']
+  },
+  {
+    id: 'business',
+    name: 'Business Consulting',
+    description: 'Strategic planning, market analysis, and business model development.',
+    icon: 'briefcase',
+    color: '#f59e0b',
+    agents: ['Strategy Consultant', 'Market Analyst', 'Financial Planner', 'Risk Assessor', 'Growth Hacker']
   }
 ];
 
 const DOMAIN_META = {
   'youtube_creator': { name: 'YouTube Creator', icon: 'video', color: '#ff0000' },
   'legal_squad': { name: 'Legal Squad', icon: 'scale', color: '#8b5cf6' },
-  'content_marketing': { name: 'Content Marketing', icon: 'edit', color: '#6366f1' },
-  'dev_team': { name: 'Dev Team', icon: 'code', color: '#10b981' },
   'youtube': { name: 'YouTube Creator', icon: 'video', color: '#ff0000' },
   'content': { name: 'Content Marketing', icon: 'edit', color: '#6366f1' },
   'legal': { name: 'Legal Squad', icon: 'scale', color: '#8b5cf6' },
@@ -285,9 +298,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [domains, setDomains] = useState([]); // Populated from /api/domains
   const [sessionId, setSessionId] = useState(null);
-  const [chatHistory, setChatHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('ai_agency_chat_history')) || []; } catch { return []; }
-  });
+  const [chatHistory, setChatHistory] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [chatInput, setChatInput] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
@@ -311,11 +322,6 @@ function App() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
-
-  // Persist chatHistory
-  useEffect(() => {
-    localStorage.setItem('ai_agency_chat_history', JSON.stringify(chatHistory));
-  }, [chatHistory]);
 
   // Fetch domains on mount
   useEffect(() => {
@@ -603,36 +609,34 @@ function App() {
     if (!chatInput.trim() || !sessionId) return;
     const msg = chatInput.trim();
     setChatInput('');
-    
+
     addMessage('user', msg);
     addFeedItem('user', 'You', msg);
-    
+
     try {
       addMessage('ai', 'Processing follow-up request...');
       setIsRunning(true);
-      
+
       const response = await fetch('/api/followup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          session_id: sessionId, 
+        body: JSON.stringify({
+          session_id: sessionId,
           message: msg,
-          user_preferences: {} // Can pull from context if needed
+          user_preferences: {}
         })
       });
-      
+
       if (!response.ok) {
         const errBody = await response.text();
         throw new Error(`Followup error (${response.status}): ${errBody}`);
       }
-      
+
       const data = await response.json();
-      setSessionId(data.session_id); // UI will reconnect to the new session
-      
-      // Keep feed clean for the new iteration
+      setSessionId(data.session_id);
+
       setFeedItems([]);
       setAgents([]);
-      
     } catch (err) {
       addMessage('error', `Failed to send follow-up: ${err.message}`);
       setIsRunning(false);

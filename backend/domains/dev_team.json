@@ -1,0 +1,44 @@
+{
+  "domain_id": "dev_team",
+  "description": "A team dedicated to architectural planning, coding, and code review.",
+  "team_roles": [
+    {
+      "role": "Architect",
+      "model": "gemini-2.5-flash",
+      "goal": "Design the system architecture, pick the tech stack, and outline the technical requirements.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.5,
+      "max_tokens": 2048
+    },
+    {
+      "role": "Backend_Engineer",
+      "model": "gemini-2.5-flash",
+      "goal": "Write the backend code, APIs, and database models based on the architecture.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.3,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Frontend_Developer",
+      "model": "gemini-2.5-flash",
+      "goal": "Write the frontend React code and styling based on the architecture and backend APIs.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.3,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Critic",
+      "model": "gemini-2.5-flash",
+      "goal": "Review the code for bugs, security vulnerabilities, and adherence to best practices. Reject if flaws exist.",
+      "system_prompt_file": "prompts/critic_agent.md",
+      "temperature": 0.1,
+      "max_tokens": 2048
+    }
+  ],
+  "workflow": ["Architect", "Backend_Engineer", "Frontend_Developer", "Critic"],
+  "parallel_stages": [
+    ["Backend_Engineer", "Frontend_Developer"]
+  ],
+  "max_retries": 3,
+  "timeout_seconds": 120
+}

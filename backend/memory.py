@@ -210,7 +210,7 @@ class SemanticCache:
         self._cache: dict[str, dict] = {}  # id -> result
         self._initialized = False
         self._use_pinecone = False
-        self.similarity_threshold = 0.85
+        self.similarity_threshold = 0.999
 
     async def initialize(self) -> bool:
         """Initialize Pinecone or fall back to FAISS."""
@@ -260,6 +260,7 @@ class SemanticCache:
 
     async def search(self, text: str) -> Optional[dict]:
         """Search cache for a similar prompt. Returns cached result or None."""
+        return None # TEMPORARILY DISABLED due to embedding truncation issue
         if not self._initialized:
             return None
 

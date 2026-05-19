@@ -15,10 +15,20 @@ services:
         sync: false  # Set manually in dashboard
       - key: DATABASE_URL
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: PINECONE_API_KEY
         sync: false
       - key: PINECONE_INDEX_NAME
         value: agency-rag
+      - key: PINECONE_DIMENSION
+        value: "768"
+      - key: GEMINI_EMBEDDING_MODEL
+        value: text-embedding-004
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN

@@ -164,10 +164,22 @@ class ConfigLoader:
                 if ":**" in line:
                     parts = line.split(":**", 1)
                     key = parts[0].replace("- **", "").strip()
-                    value = parts[1].strip().strip("[]")
+                    value = parts[1].strip().strip("[]").strip()
+                    # Skip placeholder examples
+                    if "e.g.," in value or "e.g." in value or value == "":
+                        continue
                     if current_section in preferences:
                         preferences[current_section][key] = value
-        return preferences
+                elif line.startswith("  - [ ]") or line.startswith("  - [X]"):
+                    # Checkboxes
+                    if "[ ]" in line:
+                        continue # Skip unchecked
+                    key = line.replace("  - [X]", "").strip()
+                    if current_section in preferences:
+                        preferences[current_section][key] = "Yes"
+        
+        # Clean up empty sections
+        return {k: v for k, v in preferences.items() if v}
 
     def load_constitution(self) -> str:
         """Load the CLAUDE.md global ruleset."""

@@ -1,0 +1,925 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import './App.css';
+
+// Domain definitions with their agents
+const DOMAINS = [
+  {
+    id: 'youtube',
+    name: 'YouTube Creator',
+    description: 'Create engaging video content with SEO optimization and audience growth strategies.',
+    icon: 'video',
+    color: '#ff0000',
+    agents: ['Idea Generator', 'Script Writer', 'SEO Specialist', 'Thumbnail Designer', 'Trend Analyst']
+  },
+  {
+    id: 'content',
+    name: 'Content Marketing',
+    description: 'Develop comprehensive content strategies for blogs, social media, and email campaigns.',
+    icon: 'edit',
+    color: '#6366f1',
+    agents: ['Content Strategist', 'Blog Writer', 'Social Media Manager', 'Email Marketing Expert', 'Analytics Specialist']
+  },
+  {
+    id: 'legal',
+    name: 'Legal Squad',
+    description: 'Handle legal research, contract analysis, and compliance documentation efficiently.',
+    icon: 'scale',
+    color: '#8b5cf6',
+    agents: ['Legal Researcher', 'Contract Analyst', 'Compliance Officer', 'Case Manager', 'Document Reviewer']
+  },
+  {
+    id: 'development',
+    name: 'Dev Team',
+    description: 'Build, test, and deploy software with code review and architecture planning.',
+    icon: 'code',
+    color: '#10b981',
+    agents: ['Backend Engineer', 'Frontend Developer', 'QA Engineer', 'DevOps Specialist', 'Tech Lead']
+  },
+  {
+    id: 'research',
+    name: 'Research Lab',
+    description: 'Conduct deep research, data analysis, and generate comprehensive reports.',
+    icon: 'search',
+    color: '#06b6d4',
+    agents: ['Data Analyst', 'Research Writer', 'Fact Checker', 'Citation Manager', 'Report Editor']
+  },
+  {
+    id: 'business',
+    name: 'Business Consulting',
+    description: 'Strategic planning, market analysis, and business model development.',
+    icon: 'briefcase',
+    color: '#f59e0b',
+    agents: ['Strategy Consultant', 'Market Analyst', 'Financial Planner', 'Risk Assessor', 'Growth Hacker']
+  }
+];
+
+// Agent avatars and colors
+const AGENT_COLORS = {
+  'Idea Generator': '#ff6b6b',
+  'Script Writer': '#4ecdc4',
+  'SEO Specialist': '#45b7d1',
+  'Thumbnail Designer': '#96ceb4',
+  'Trend Analyst': '#ffeaa7',
+  'Content Strategist': '#dfe6e9',
+  'Blog Writer': '#74b9ff',
+  'Social Media Manager': '#a29bfe',
+  'Email Marketing Expert': '#fd79a8',
+  'Analytics Specialist': '#00b894',
+  'Legal Researcher': '#636e72',
+  'Contract Analyst': '#b2bec3',
+  'Compliance Officer': '#d63031',
+  'Case Manager': '#e17055',
+  'Document Reviewer': '#fdcb6e',
+  'Backend Engineer': '#00cec9',
+  'Frontend Developer': '#6c5ce7',
+  'QA Engineer': '#e84393',
+  'DevOps Specialist': '#55a3ff',
+  'Tech Lead': '#ffd93d',
+  'Data Analyst': '#6ab04c',
+  'Research Writer': '#22a6b3',
+  'Fact Checker': '#be2edd',
+  'Citation Manager': '#eb4d4b',
+  'Report Editor': '#30336b',
+  'Strategy Consultant': '#f9ca24',
+  'Market Analyst': '#686de0',
+  'Financial Planner': '#22a6b3',
+  'Risk Assessor': '#eb4d4b',
+  'Growth Hacker': '#7ed6df'
+};
+
+// Icon components
+const Icons = {
+  logo: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" />
+      <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" />
+      <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  ),
+  heart: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="url(#gradient)" />
+      <defs>
+        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ff6b6b" />
+          <stop offset="50%" stopColor="#a855f7" />
+          <stop offset="100%" stopColor="#06b6d4" />
+        </linearGradient>
+      </defs>
+    </svg>
+  ),
+  video: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  ),
+  edit: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  ),
+  scale: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" />
+      <path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" />
+      <path d="M7 21h10" />
+      <path d="M12 3v18" />
+      <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+    </svg>
+  ),
+  code: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  ),
+  search: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  ),
+  briefcase: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  ),
+  sparkles: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+      <path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1z" />
+      <path d="M19 13l1 2 1-2 2-1-2-1-1-2-1 2-2 1 2 1z" />
+    </svg>
+  ),
+  target: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  ),
+  users: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  activity: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  ),
+  terminal: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  ),
+  copy: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  ),
+  download: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
+  send: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  ),
+  user: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  ),
+  bot: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="10" rx="2" />
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v4" />
+      <line x1="8" y1="16" x2="8" y2="16" />
+      <line x1="16" y1="16" x2="16" y2="16" />
+    </svg>
+  ),
+  zap: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  ),
+  plus: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  mic: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  ),
+  chevronDown: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  ),
+  menu: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  ),
+  x: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  chevronLeft: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  ),
+  trash: (
+    <svg viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+};
+
+// Domain icon mapper
+const getDomainIcon = (iconName) => Icons[iconName] || Icons.sparkles;
+
+function App() {
+  // State management
+  const [selectedDomain, setSelectedDomain] = useState(null);
+  const [goal, setGoal] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const [agents, setAgents] = useState([]);
+  const [feedItems, setFeedItems] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [output, setOutput] = useState(null);
+  const [showDomains, setShowDomains] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [chatHistory, setChatHistory] = useState([
+    { id: 1, title: 'YouTube video strategy for tech reviews', date: '2 hours ago', domain: 'youtube' },
+    { id: 2, title: 'Legal contract review for startup', date: 'Yesterday', domain: 'legal' },
+    { id: 3, title: 'React app development project', date: '3 days ago', domain: 'development' },
+    { id: 4, title: 'Market research for SaaS product', date: 'Last week', domain: 'business' },
+    { id: 5, title: 'Content marketing campaign Q1', date: '2 weeks ago', domain: 'content' }
+  ]);
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState({
+    gemini: true,
+    redis: true,
+    database: true
+  });
+
+  const feedRef = useRef(null);
+  const goalInputRef = useRef(null);
+
+  // Auto-scroll feed
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [feedItems]);
+
+  // Simulation logic
+  const runSimulation = useCallback(async (domain, userGoal) => {
+    const domainData = DOMAINS.find(d => d.id === domain);
+    if (!domainData) return;
+
+    setIsRunning(true);
+    setFeedItems([]);
+    setAgents([]);
+    setMessages([]);
+    setOutput(null);
+
+    // Add initial system message
+    addFeedItem('system', 'System', `Launching ${domainData.name} team for: "${userGoal}"`);
+
+    // Simulate agent spawning
+    for (let i = 0; i < domainData.agents.length; i++) {
+      const agentName = domainData.agents[i];
+
+      // Spawn animation
+      await new Promise(resolve => setTimeout(resolve, 300));
+      spawnAgent(agentName, i);
+      addFeedItem('success', 'System', `${agentName} spawned successfully`);
+
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+
+    // Add user message to chat
+    addMessage('user', userGoal);
+
+    // Simulate agent work
+    const workPhases = [
+      { status: 'working', duration: 2000, message: 'Analyzing requirements...' },
+      { status: 'working', duration: 1500, message: 'Processing data...' },
+      { status: 'reviewing', duration: 1800, message: 'Reviewing output...' },
+      { status: 'completed', duration: 500, message: 'Task completed' }
+    ];
+
+    // Update agents through phases
+    for (const phase of workPhases) {
+      setAgents(prev => prev.map(agent => ({
+        ...agent,
+        status: phase.status,
+        task: phase.message
+      })));
+
+      // Add feed items
+      const activeAgents = domainData.agents.slice(0, Math.min(3, domainData.agents.length));
+      for (const agentName of activeAgents) {
+        addFeedItem('agent', agentName, phase.message);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, phase.duration));
+    }
+
+    // Generate output
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const generatedOutput = generateOutput(domainData, userGoal);
+    setOutput(generatedOutput);
+
+    // Add AI response to chat
+    addMessage('ai', generatedOutput.summary);
+
+    // Simulate agent termination
+    addFeedItem('system', 'System', 'Workflow completed. Terminating agents...');
+
+    for (let i = domainData.agents.length - 1; i >= 0; i--) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      terminateAgent(i);
+    }
+
+    setIsRunning(false);
+  }, []);
+
+  // Spawn agent
+  const spawnAgent = (name, index) => {
+    const color = AGENT_COLORS[name] || '#6366f1';
+    const newAgent = {
+      id: `agent-${Date.now()}-${index}`,
+      name,
+      status: 'idle',
+      task: 'Waiting for task...',
+      progress: 0,
+      color,
+      isNew: true
+    };
+
+    setAgents(prev => [...prev, newAgent]);
+
+    // Remove spawn animation class after animation
+    setTimeout(() => {
+      setAgents(prev => prev.map(a =>
+        a.id === newAgent.id ? { ...a, isNew: false } : a
+      ));
+    }, 600);
+  };
+
+  // Terminate agent
+  const terminateAgent = (index) => {
+    setAgents(prev => prev.map((agent, i) =>
+      i === index ? { ...agent, status: 'terminating' } : agent
+    ));
+
+    setTimeout(() => {
+      setAgents(prev => prev.filter((_, i) => i !== index));
+    }, 400);
+  };
+
+  // Add feed item
+  const addFeedItem = (type, agent, message) => {
+    const timestamp = new Date().toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    setFeedItems(prev => [...prev, { type, agent, message, timestamp, id: Date.now() }]);
+  };
+
+  // Add chat message
+  const addMessage = (type, content) => {
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type,
+      content,
+      timestamp: new Date().toLocaleTimeString()
+    }]);
+  };
+
+  // Generate output based on domain
+  const generateOutput = (domain, goal) => {
+    const outputs = {
+      youtube: {
+        title: 'YouTube Content Strategy',
+        summary: `I've created a comprehensive YouTube strategy for: "${goal}". This includes video ideas, optimized titles, descriptions, and a content calendar.`,
+        sections: [
+          { title: 'Video Ideas', items: ['Top 5 video concepts aligned with your niche', 'Hook patterns for higher retention', 'SEO-optimized titles and descriptions'] },
+          { title: 'Content Calendar', items: ['Weekly upload schedule', 'Thumbnail A/B testing plan', 'Community post strategy'] },
+          { title: 'Growth Tactics', items: ['End screen optimization', 'Playlist strategy', 'Shorts cross-promotion'] }
+        ]
+      },
+      content: {
+        title: 'Content Marketing Campaign',
+        summary: `I've developed a multi-channel content strategy for: "${goal}". This covers blog posts, social media, and email sequences.`,
+        sections: [
+          { title: 'Blog Content', items: ['SEO-optimized article outlines', 'Internal linking strategy', 'CTA placement recommendations'] },
+          { title: 'Social Media', items: ['Platform-specific post templates', 'Hashtag research', 'Engagement optimization'] },
+          { title: 'Email Sequence', items: ['Welcome series (5 emails)', 'Nurture sequence triggers', 'Conversion-optimized CTAs'] }
+        ]
+      },
+      legal: {
+        title: 'Legal Research Summary',
+        summary: `I've compiled a comprehensive legal analysis for: "${goal}". This includes relevant statutes, case precedents, and compliance recommendations.`,
+        sections: [
+          { title: 'Applicable Laws', items: ['Federal regulations overview', 'State-specific requirements', 'Industry compliance standards'] },
+          { title: 'Risk Assessment', items: ['Liability analysis', 'Mitigation strategies', 'Documentation requirements'] },
+          { title: 'Recommended Actions', items: ['Immediate compliance steps', 'Policy updates needed', 'Review timeline'] }
+        ]
+      },
+      development: {
+        title: 'Technical Solution Design',
+        summary: `I've created a detailed technical specification for: "${goal}". This includes architecture, implementation plan, and testing strategy.`,
+        sections: [
+          { title: 'Architecture', items: ['System design diagram', 'Database schema', 'API endpoints specification'] },
+          { title: 'Implementation', items: ['Phased development roadmap', 'Tech stack recommendations', 'Code quality standards'] },
+          { title: 'Testing & Deployment', items: ['Unit test coverage requirements', 'CI/CD pipeline design', 'Monitoring strategy'] }
+        ]
+      },
+      research: {
+        title: 'Research Report',
+        summary: `I've conducted an in-depth research analysis on: "${goal}". This includes data synthesis, key findings, and actionable recommendations.`,
+        sections: [
+          { title: 'Key Findings', items: ['Primary research insights', 'Data visualization recommendations', 'Gap analysis'] },
+          { title: 'Evidence Summary', items: ['Source credibility assessment', 'Statistical significance review', 'Contradiction analysis'] },
+          { title: 'Recommendations', items: ['Strategic next steps', 'Further research needs', 'Implementation优先级'] }
+        ]
+      },
+      business: {
+        title: 'Business Strategy Report',
+        summary: `I've developed a comprehensive business strategy for: "${goal}". This includes market analysis, competitive positioning, and execution roadmap.`,
+        sections: [
+          { title: 'Market Analysis', items: ['Target market sizing', 'Competitor landscape', 'Opportunity mapping'] },
+          { title: 'Strategic Positioning', items: ['Unique value proposition', 'Go-to-market strategy', 'Revenue model'] },
+          { title: 'Execution Plan', items: ['90-day action items', 'KPI framework', 'Risk mitigation strategies'] }
+        ]
+      }
+    };
+
+    return outputs[domain] || {
+      title: 'Generated Output',
+      summary: `Processing complete for: "${goal}"`,
+      sections: [{ title: 'Results', items: ['Task completed successfully', 'Review for accuracy', 'Provide feedback for improvements'] }]
+    };
+  };
+
+  // Handle launch
+  const handleLaunch = () => {
+    if (!selectedDomain || !goal.trim()) return;
+    runSimulation(selectedDomain, goal);
+  };
+
+  // Clear feed
+  const clearFeed = () => {
+    setFeedItems([]);
+  };
+
+  // Copy output
+  const copyOutput = () => {
+    if (output) {
+      const text = `${output.title}\n\n${output.summary}\n\n${output.sections.map(s => `${s.title}:\n${s.items.map(i => `- ${i}`).join('\n')}`).join('\n\n')}`;
+      navigator.clipboard.writeText(text);
+    }
+  };
+
+  // Select domain from dropdown
+  const handleDomainSelect = (domainId) => {
+    setSelectedDomain(domainId);
+    setShowDomains(false);
+    goalInputRef.current?.focus();
+  };
+
+  // Start new chat
+  const startNewChat = () => {
+    setAgents([]);
+    setFeedItems([]);
+    setMessages([]);
+    setOutput(null);
+    setGoal('');
+    setSelectedDomain(null);
+    setActiveChatId(null);
+  };
+
+  // Select chat from history
+  const selectChat = (chatId) => {
+    setActiveChatId(chatId);
+  };
+
+  // Get domain icon for history item
+  const getHistoryIcon = (domainId) => {
+    const domain = DOMAINS.find(d => d.id === domainId);
+    return getDomainIcon(domain?.icon || 'sparkles');
+  };
+
+  return (
+    <>
+      {/* Mesh Gradient Background */}
+      <div className="mesh-background">
+        <div className="mesh-gradient" />
+        <div className="mesh-orb mesh-orb-1" />
+        <div className="mesh-orb mesh-orb-2" />
+        <div className="mesh-orb mesh-orb-3" />
+      </div>
+
+      {/* Floating Sidebar Toggle (when sidebar is collapsed) */}
+      <button
+        className={`floating-sidebar-toggle ${!sidebarOpen ? 'visible' : ''}`}
+        onClick={() => setSidebarOpen(true)}
+      >
+        {Icons.menu}
+      </button>
+
+      {/* Chat History Sidebar */}
+      <aside className={`chat-sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
+        <div className="sidebar-header">
+          <span className="sidebar-title">History</span>
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen(false)}>
+            {Icons.chevronLeft}
+          </button>
+        </div>
+
+        <div className="sidebar-search">
+          <div className="search-input-wrapper">
+            {Icons.search}
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search conversations..."
+            />
+          </div>
+        </div>
+
+        <div className="sidebar-new-chat">
+          <button className="btn-new-chat" onClick={startNewChat}>
+            {Icons.plus}
+            New Chat
+          </button>
+        </div>
+
+        <div className="sidebar-history">
+          <div className="history-section">
+            <div className="history-section-title">Recent</div>
+            {chatHistory.map(chat => (
+              <div
+                key={chat.id}
+                className={`history-item ${activeChatId === chat.id ? 'active' : ''}`}
+                onClick={() => selectChat(chat.id)}
+              >
+                <div className="history-item-icon">
+                  {getHistoryIcon(chat.domain)}
+                </div>
+                <div className="history-item-content">
+                  <div className="history-item-title">{chat.title}</div>
+                  <div className="history-item-meta">{chat.date}</div>
+                </div>
+                <div className="history-item-actions">
+                  <button className="history-action-btn" title="Delete">
+                    {Icons.trash}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="user-avatar">
+              {Icons.user}
+            </div>
+            <div className="user-info">
+              <div className="user-name">Demo User</div>
+              <div className="user-plan">Free Plan</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main App Container */}
+      <div className="app-container">
+        {/* Main Content Area */}
+        <main className="main-content">
+          <nav className="nav-bar">
+            <div className="nav-brand">
+              <div className="nav-logo">
+                {Icons.heart}
+              </div>
+              <span className="nav-brand-text">AI Agency</span>
+            </div>
+
+            <div className="nav-links">
+              <button className="nav-link">Solutions</button>
+              <button className="nav-link">Resources</button>
+              <button className="nav-link">Community</button>
+              <button className="nav-link">Enterprise</button>
+              <button className="nav-link">Pricing</button>
+            </div>
+
+            <div className="nav-actions">
+              <button className="btn-nav-secondary">Log in</button>
+              <button className="btn-nav-primary">Get started</button>
+            </div>
+
+            <button className="nav-mobile-toggle">
+              {Icons.menu}
+            </button>
+          </nav>
+
+          {/* Hero Section with Central Prompt */}
+          <section className="hero-section">
+            <div className="hero-badge">
+              <span>New:</span> Multi-Agent Collaboration System
+            </div>
+
+            <h1 className="hero-title">Build something extraordinary</h1>
+            <p className="hero-subtitle">Assemble a team of specialized AI agents that collaborate in real-time to bring your ideas to life</p>
+
+            {/* Central Prompt Input - Lovable Style */}
+            <div className="central-prompt">
+              <div className="prompt-input-wrapper">
+                {/* Domain Selector */}
+                <button
+                  className="domain-selector"
+                  onClick={() => setShowDomains(!showDomains)}
+                >
+                  <span className="domain-selector-icon">{Icons.sparkles}</span>
+                  <span className="domain-selector-text">
+                    {selectedDomain ? DOMAINS.find(d => d.id === selectedDomain)?.name : 'Select domain'}
+                  </span>
+                  <span className="domain-selector-chevron">{Icons.chevronDown}</span>
+                </button>
+
+                {/* Domain Dropdown */}
+                {showDomains && (
+                  <div className="domain-dropdown">
+                    {DOMAINS.map(domain => (
+                      <button
+                        key={domain.id}
+                        className={`domain-option ${selectedDomain === domain.id ? 'selected' : ''}`}
+                        onClick={() => handleDomainSelect(domain.id)}
+                      >
+                        <div className="domain-option-icon" style={{ color: domain.color }}>
+                          {getDomainIcon(domain.icon)}
+                        </div>
+                        <div className="domain-option-info">
+                          <span className="domain-option-name">{domain.name}</span>
+                          <span className="domain-option-agents">{domain.agents.length} agents</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Main Input */}
+                <textarea
+                  ref={goalInputRef}
+                  className="prompt-input"
+                  placeholder="Describe what you want to achieve... (e.g., 'Create a video about AI trends in 2025')"
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  disabled={isRunning}
+                  rows={3}
+                />
+
+                {/* Prompt Actions */}
+                <div className="prompt-actions">
+                  <button className="prompt-action" title="Attach files">
+                    {Icons.plus}
+                  </button>
+                  <button className="prompt-action" title="Voice input">
+                    {Icons.mic}
+                  </button>
+                  <button
+                    className="prompt-submit"
+                    onClick={handleLaunch}
+                    disabled={!selectedDomain || !goal.trim() || isRunning}
+                  >
+                    {isRunning ? (
+                      <div className="spinner" />
+                    ) : (
+                      <>
+                        <span>Launch Team</span>
+                        {Icons.zap}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Agent Count Hint */}
+              {selectedDomain && (
+                <div className="prompt-hint">
+                  {DOMAINS.find(d => d.id === selectedDomain)?.agents.length} specialized agents ready to collaborate
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Agent Dashboard */}
+          {agents.length > 0 && (
+            <section className="agents-section">
+              <div className="section-header">
+                <div className="section-icon">
+                  {Icons.users}
+                </div>
+                <div>
+                  <h2 className="section-title">Agent Team Dashboard</h2>
+                  <p className="section-subtitle">Real-time agent activity and status monitoring</p>
+                </div>
+              </div>
+
+              <div className="agent-grid">
+                {agents.map((agent, index) => (
+                  <div
+                    key={agent.id}
+                    className={`agent-card ${agent.status} ${agent.isNew ? 'spawning' : ''}`}
+                  >
+                    <div className="agent-status">{agent.status}</div>
+                    <div className="agent-header">
+                      <div
+                        className="agent-avatar"
+                        style={{ backgroundColor: agent.color }}
+                      >
+                        {agent.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="agent-info">
+                        <h4>{agent.name}</h4>
+                        <span>Agent #{index + 1}</span>
+                      </div>
+                    </div>
+                    <p className="agent-task">{agent.task}</p>
+                    <div className="agent-progress">
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ width: agent.status === 'completed' ? '100%' : agent.status === 'working' ? '60%' : '20%' }}
+                        />
+                      </div>
+                      <span className="progress-text">
+                        {agent.status === 'completed' ? 'Complete' : agent.status === 'working' ? 'Processing...' : 'Initializing...'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Live Feed Section */}
+          {feedItems.length > 0 && (
+            <section className="feed-section">
+              <div className="feed-container">
+                <div className="feed-header">
+                  <div className="feed-title">
+                    {Icons.terminal}
+                    <h3>Live Agent Feed</h3>
+                    <span className="feed-badge">Live</span>
+                  </div>
+                  <div className="feed-actions">
+                    <button onClick={clearFeed} title="Clear feed">
+                      {Icons.copy}
+                    </button>
+                  </div>
+                </div>
+                <div className="feed-content" ref={feedRef}>
+                  {feedItems.map(item => (
+                    <div key={item.id} className={`feed-item ${item.type}`}>
+                      <span className="feed-timestamp">{item.timestamp}</span>
+                      {item.agent !== 'System' && (
+                        <span className="feed-agent">{item.agent}:</span>
+                      )}
+                      <span className="feed-message">{item.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Chat Interface */}
+          <section className="chat-section">
+            <div className="chat-container">
+              <div className="chat-messages">
+                {messages.length === 0 && (
+                  <div className="chat-empty">
+                    {Icons.bot}
+                    <p>Your AI team is ready to collaborate</p>
+                  </div>
+                )}
+                {messages.map(msg => (
+                  <div key={msg.id} className={`chat-message ${msg.type}`}>
+                    <div className={`message-avatar ${msg.type === 'user' ? 'user-avatar' : 'ai-avatar'}`}>
+                      {msg.type === 'user' ? Icons.user : Icons.bot}
+                    </div>
+                    <div className="message-content">
+                      <span className="message-sender">
+                        {msg.type === 'user' ? 'You' : 'AI Agency Team'}
+                      </span>
+                      <div className="message-text">
+                        {msg.content.split('\n').map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="chat-input-area">
+                <div className="chat-input-wrapper">
+                  <textarea
+                    className="chat-input"
+                    placeholder="Continue the conversation..."
+                    rows={1}
+                  />
+                  <button className="btn-send" disabled>
+                    {Icons.send}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Output Section */}
+          {output && (
+            <section className="output-section">
+              <div className="output-container">
+                <div className="output-header">
+                  <div className="output-title">
+                    {Icons.check}
+                    <h3>Final Output</h3>
+                  </div>
+                  <span className="output-badge">Complete</span>
+                </div>
+                <div className="output-content">
+                  <h2>{output.title}</h2>
+                  <p>{output.summary}</p>
+                  {output.sections.map((section, idx) => (
+                    <div key={idx}>
+                      <h3>{section.title}</h3>
+                      <ul>
+                        {section.items.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                <div className="output-actions">
+                  <button className="btn-action" onClick={copyOutput}>
+                    {Icons.copy}
+                    Copy to Clipboard
+                  </button>
+                  <button className="btn-action">
+                    {Icons.download}
+                    Export as PDF
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+        </main>
+      </div>
+    </>
+  );
+}
+
+export default App;

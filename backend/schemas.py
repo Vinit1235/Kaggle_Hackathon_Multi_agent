@@ -39,6 +39,8 @@ class ModelTier(str, Enum):
 class DomainType(str, Enum):
     YOUTUBE_CREATOR = "youtube_creator"
     LEGAL_SQUAD = "legal_squad"
+    CONTENT_MARKETING = "content_marketing"
+    DEV_TEAM = "dev_team"
 
 
 # ── Task & Inbox Models ───────────────────────────────────────────────
@@ -170,3 +172,34 @@ class HealthCheck(BaseModel):
     ollama_connected: bool = False
     redis_connected: bool = False
     db_initialized: bool = False
+
+
+class FollowUpRequest(BaseModel):
+    session_id: str
+    message: str
+    user_preferences: Optional[dict] = None
+
+
+# ── Auth Models ──────────────────────────────────────────────────────
+
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthUser(BaseModel):
+    id: str
+    email: Optional[str] = None
+
+
+class AuthResponse(BaseModel):
+    user: AuthUser
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    token_type: Optional[str] = None

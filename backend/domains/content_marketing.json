@@ -1,0 +1,42 @@
+{
+  "domain_id": "content_marketing",
+  "description": "A team dedicated to creating SEO-optimized blog posts, social media copies, and email campaigns.",
+  "team_roles": [
+    {
+      "role": "Content_Strategist",
+      "model": "gemini-2.5-flash",
+      "goal": "Outline a content strategy, including target audience, key messaging, and SEO keywords.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.7,
+      "max_tokens": 2048
+    },
+    {
+      "role": "Blog_Writer",
+      "model": "gemini-2.5-flash",
+      "goal": "Draft a long-form blog post following the content strategy and SEO guidelines.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.8,
+      "max_tokens": 4096
+    },
+    {
+      "role": "Social_Media_Manager",
+      "model": "gemini-2.0-flash",
+      "goal": "Write engaging social media posts (Twitter, LinkedIn, Instagram) promoting the blog post.",
+      "system_prompt_file": "prompts/worker_agent.md",
+      "temperature": 0.8,
+      "max_tokens": 2048
+    },
+    {
+      "role": "Critic",
+      "model": "gemini-2.5-flash",
+      "goal": "Review all copies for brand consistency, readability, and SEO optimization. Reject if off-tone.",
+      "system_prompt_file": "prompts/critic_agent.md",
+      "temperature": 0.3,
+      "max_tokens": 2048
+    }
+  ],
+  "workflow": ["Content_Strategist", "Blog_Writer", "Social_Media_Manager", "Critic"],
+  "parallel_stages": [],
+  "max_retries": 3,
+  "timeout_seconds": 120
+}

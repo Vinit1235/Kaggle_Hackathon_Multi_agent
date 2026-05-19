@@ -14,17 +14,22 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from agents import CriticAgent, LeadAgent, SynthesizerAgent, WorkerAgent
 from config_loader import config_loader
 from memory import memx, semantic_cache
-from orchestrator import WorkflowOrchestrator
+from langgraph_workflow import LangGraphWorkflow
 from router import model_router
 from schemas import (
-    DomainType, HealthCheck, RunWorkflowRequest,
+    DomainType, HealthCheck, RunWorkflowRequest, FollowUpRequest,
     RunWorkflowResponse, SessionInfo, TaskStatus,
+    AuthLoginRequest, AuthRegisterRequest, AuthResponse, AuthUser,
 )
 from taskbox import TaskBox
+from supabase_auth import create_user as supabase_create_user, login_user as supabase_login_user, SupabaseAuthError
 
 
 # ── Globals ───────────────────────────────────────────────────────────
@@ -125,6 +130,49 @@ async def list_domains():
     return {"domains": result}
 
 
+@app.post("/api/auth/register", response_model=AuthResponse)
+async def register_user(request: AuthRegisterRequest):
+    """Register a new user using Supabase Auth (admin create + login)."""
+    try:
+        await supabase_create_user(request.email, request.password)
+        session = await supabase_login_user(request.email, request.password)
+    except SupabaseAuthError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Auth register failed: {e}")
+        raise HTTPException(status_code=500, detail="Auth registration failed")
+
+    user = session.get("user") or {}
+    return AuthResponse(
+        user=AuthUser(id=user.get("id", ""), email=user.get("email")),
+        access_token=session.get("access_token", ""),
+        refresh_token=session.get("refresh_token"),
+        expires_in=session.get("expires_in"),
+        token_type=session.get("token_type"),
+    )
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+async def login_user(request: AuthLoginRequest):
+    """Login an existing user using Supabase Auth."""
+    try:
+        session = await supabase_login_user(request.email, request.password)
+    except SupabaseAuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        logger.error(f"Auth login failed: {e}")
+        raise HTTPException(status_code=500, detail="Auth login failed")
+
+    user = session.get("user") or {}
+    return AuthResponse(
+        user=AuthUser(id=user.get("id", ""), email=user.get("email")),
+        access_token=session.get("access_token", ""),
+        refresh_token=session.get("refresh_token"),
+        expires_in=session.get("expires_in"),
+        token_type=session.get("token_type"),
+    )
+
+
 @app.post("/api/run", response_model=RunWorkflowResponse)
 async def run_workflow(request: RunWorkflowRequest):
     """
@@ -154,6 +202,59 @@ async def run_workflow(request: RunWorkflowRequest):
         domain=request.domain.value,
         status="started",
         message=f"Workflow started with session {session_id}",
+    )
+
+
+@app.post("/api/followup", response_model=RunWorkflowResponse)
+async def run_followup(request: FollowUpRequest):
+    """
+    Handle a follow-up message for an existing session.
+    Retrieves previous output and runs a new workflow session.
+    """
+    # 1. Fetch old session info from memX
+    info = await memx.read_state(f"session:{request.session_id}:info")
+    if not info or "domain" not in info:
+        raise HTTPException(status_code=404, detail="Original session not found or invalid.")
+
+    domain = info["domain"]
+    
+    # 2. Fetch final output from old session
+    final_output = await memx.read_state(f"session:{request.session_id}:final_output")
+    prev_context = json.dumps(final_output) if final_output else "No previous output found."
+
+    # 3. Create a NEW session ID for the follow-up
+    new_session_id = uuid.uuid4().hex
+    
+    # 4. Construct the new goal embedding the previous context
+    new_goal = f"Previous Workflow Output:\n{prev_context}\n\nUser Follow-up Request:\n{request.message}"
+    
+    session = SessionInfo(
+        session_id=new_session_id,
+        domain=DomainType(domain),
+        user_goal=new_goal,
+        user_preferences=request.user_preferences,
+    )
+    active_sessions[new_session_id] = session
+
+    await memx.update_state(
+        f"session:{new_session_id}:info",
+        {"domain": domain, "goal": new_goal, "status": "started"},
+    )
+
+    # 5. Create a RunWorkflowRequest for the new session
+    run_req = RunWorkflowRequest(
+        domain=DomainType(domain),
+        user_goal=new_goal,
+        user_preferences=request.user_preferences
+    )
+
+    asyncio.create_task(_execute_workflow(new_session_id, run_req))
+
+    return RunWorkflowResponse(
+        session_id=new_session_id,
+        domain=domain,
+        status="started",
+        message=f"Follow-up workflow started with session {new_session_id}",
     )
 
 
@@ -259,7 +360,7 @@ async def _execute_workflow(session_id: str, request: RunWorkflowRequest) -> Non
     user_prefs = request.user_preferences or config_loader.get_user_preferences()
 
     try:
-        orchestrator = WorkflowOrchestrator(session_id, request.domain, taskbox)
+        orchestrator = LangGraphWorkflow(session_id, request.domain, taskbox)
 
         # Wire up WebSocket broadcasting as the event callback
         async def ws_event_handler(event: dict):
@@ -268,6 +369,12 @@ async def _execute_workflow(session_id: str, request: RunWorkflowRequest) -> Non
         orchestrator.on_event(ws_event_handler)
 
         result = await orchestrator.run(request.user_goal, user_prefs)
+
+        if result.get("content"):
+            await memx.update_state(
+                f"session:{session_id}:final_output",
+                {"content": result.get("content", ""), "status": result.get("status", "completed")},
+            )
 
         # Update session status
         if session_id in active_sessions:

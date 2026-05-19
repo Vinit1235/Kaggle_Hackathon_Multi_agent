@@ -195,7 +195,8 @@ class TaskBox:
 
     async def write_task(self, task: TaskRecord) -> TaskRecord:
         """Insert a new task into the Taskbox."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow()
+        now_str = now.isoformat()
 
         if self._use_postgres:
             async with self._pool.acquire() as conn:
@@ -223,7 +224,7 @@ class TaskBox:
                     task.task_id, task.session_id, task.domain, task.agent_role,
                     task.goal, json.dumps(task.input_data), json.dumps(task.output_data),
                     task.status.value, task.parent_task_id, task.priority,
-                    task.error_message, task.retry_count, now, now
+                    task.error_message, task.retry_count, now_str, now_str
                 ),
             )
             await self._db.commit()
@@ -239,7 +240,8 @@ class TaskBox:
         error_message: Optional[str] = None,
     ) -> None:
         """Update a task's status and optionally its output or error."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow()
+        now_str = now.isoformat()
 
         if self._use_postgres:
             async with self._pool.acquire() as conn:
@@ -265,7 +267,7 @@ class TaskBox:
                     )
         else:
             fields = ["status = ?", "updated_at = ?"]
-            values: list[Any] = [status.value, now]
+            values: list[Any] = [status.value, now_str]
             if output_data is not None:
                 fields.append("output_data = ?")
                 values.append(json.dumps(output_data))
@@ -285,7 +287,7 @@ class TaskBox:
             async with self._pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE tasks SET retry_count = retry_count + 1, updated_at = $1 WHERE task_id = $2",
-                    datetime.utcnow().isoformat(), task_id
+                    datetime.utcnow(), task_id
                 )
                 row = await conn.fetchrow("SELECT retry_count FROM tasks WHERE task_id = $1", task_id)
                 return row["retry_count"] if row else 0
@@ -409,7 +411,7 @@ class TaskBox:
                     """,
                     message.message_id, message.session_id, message.target_agent,
                     message.source_agent, message.task_id,
-                    json.dumps(message.content), message.created_at.isoformat()
+                    json.dumps(message.content), message.created_at
                 )
         else:
             await self._db.execute(
@@ -504,7 +506,7 @@ class TaskBox:
                     entry.log_id, entry.session_id, entry.agent_role, entry.action,
                     json.dumps(compressed_details), entry.status.value,
                     entry.error_message[:200] + "..." if entry.error_message and len(entry.error_message) > 200 else entry.error_message,
-                    entry.token_count, entry.latency_ms, entry.timestamp.isoformat()
+                    entry.token_count, entry.latency_ms, entry.timestamp
                 )
         else:
             await self._db.execute(
