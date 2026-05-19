@@ -4,20 +4,20 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.0
 websockets==12.0
 
-# Database
+# Database — Supabase PostgreSQL (cloud) + SQLite (local fallback)
+asyncpg==0.30.0
 aiosqlite==0.20.0
 
-# Redis / State Management
+# Redis / State Management — Upstash REST (cloud) + standard redis (local)
 redis==5.0.8
 upstash-redis==1.1.0
 
-# LLM Integration
-ollama==0.3.3
-google-cloud-aiplatform==1.68.0
+# LLM Integration — Gemini API (primary) + Ollama (local fallback)
+httpx==0.27.0
 google-generativeai==0.8.0
 
-# Memory & RAG
-faiss-cpu==1.8.0
+# Vector DB — Pinecone (cloud) + FAISS (local fallback)
+pinecone==5.4.2
 sentence-transformers==3.0.1
 rank-bm25==0.2.2
 numpy==1.26.4
@@ -26,15 +26,14 @@ numpy==1.26.4
 python-dotenv==1.0.1
 pydantic==2.9.0
 pydantic-settings==2.5.2
-httpx==0.27.0
 loguru==0.7.2
 uuid6==2024.7.10
 
-# Security
-presidio-analyzer==2.2.355
-presidio-anonymizer==2.2.355
+# Security (optional — heavy, disable on free tier with ENABLE_PII_SHIELD=false)
+# presidio-analyzer==2.2.355
+# presidio-anonymizer==2.2.355
 
 # Observability (Optional)
-opentelemetry-api==1.27.0
-opentelemetry-sdk==1.27.0
-opentelemetry-instrumentation-fastapi==0.48b0
+# opentelemetry-api==1.27.0
+# opentelemetry-sdk==1.27.0
+# opentelemetry-instrumentation-fastapi==0.48b0

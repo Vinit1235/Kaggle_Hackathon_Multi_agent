@@ -69,7 +69,7 @@ class ConfigLoader:
         for role_config in raw["team_roles"]:
             if role_config["role"] == agent_role:
                 return {
-                    "model": role_config.get("model", "gemma4:e2b"),
+                    "model": role_config.get("model", "gemini-2.0-flash"),
                     "temperature": role_config.get("temperature", 0.7),
                     "max_tokens": role_config.get("max_tokens", 2048),
                     "system_prompt_file": role_config.get("system_prompt_file", "prompts/worker_agent.md"),
@@ -83,7 +83,7 @@ class ConfigLoader:
                 "Synthesizer": "prompts/worker_agent.md" # fallback or actual synthesizer prompt
             }
             return {
-                "model": "gemma4:26b-moe",  # Stronger model for core roles
+                "model": "gemini-2.5-flash",  # Stronger model for core roles
                 "temperature": 0.5,
                 "max_tokens": 4096,
                 "system_prompt_file": prompt_files.get(agent_role, "prompts/worker_agent.md")

@@ -4,12 +4,12 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=10000
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (needed for FAISS and compiling packages)
+# Install system dependencies (needed for compiling packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -24,11 +24,11 @@ COPY backend/ .
 COPY User_Preference.md /app/
 COPY CLAUDE.md /app/
 
-# Create data directory for SQLite DB and FAISS index
+# Create data directory for SQLite DB fallback
 RUN mkdir -p /app/data
 
-# Expose port
-EXPOSE 8000
+# Expose port (Render uses 10000 by default)
+EXPOSE 10000
 
 # Start FastAPI server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]

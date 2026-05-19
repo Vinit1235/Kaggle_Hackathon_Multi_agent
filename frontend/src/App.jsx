@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import './App.css'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // Domain definitions with icons
 const DOMAIN_INFO = {
@@ -71,7 +71,7 @@ function App() {
     fetch(`${API_BASE}/health`)
       .then(r => r.json())
       .then(setHealth)
-      .catch(() => setHealth({ ollama_connected: false, redis_connected: false, db_initialized: false }))
+      .catch(() => setHealth({ gemini_connected: false, redis_connected: false, db_initialized: false }))
   }, [])
 
   // Auto-scroll feed
@@ -88,7 +88,9 @@ function App() {
   const connectWS = useCallback((sid) => {
     if (wsRef.current) wsRef.current.close()
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/${sid}`)
+    const wsProtocol = API_BASE.startsWith('https') ? 'wss' : 'ws'
+    const wsHost = API_BASE.replace(/^https?:\/\//, '')
+    const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws/${sid}`)
     wsRef.current = ws
 
     ws.onopen = () => addFeedItem('System', 'Connected to live feed')
@@ -182,8 +184,8 @@ function App() {
         </div>
         <div className="header-status">
           <div className="status-indicator">
-            <div className={`status-dot ${health?.ollama_connected ? 'online' : 'offline'}`} />
-            Ollama
+            <div className={`status-dot ${health?.gemini_connected ? 'online' : 'offline'}`} />
+            Gemini
           </div>
           <div className="status-indicator">
             <div className={`status-dot ${health?.redis_connected ? 'online' : 'warning'}`} />

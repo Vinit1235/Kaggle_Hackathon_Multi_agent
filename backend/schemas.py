@@ -166,7 +166,7 @@ class HealthCheck(BaseModel):
     """Health check response."""
     status: str = "healthy"
     version: str = "1.0.0"
-    proxy_connected: bool = False
+    gemini_connected: bool = False
     ollama_connected: bool = False
     redis_connected: bool = False
     db_initialized: bool = False

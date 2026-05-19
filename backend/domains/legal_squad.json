@@ -4,7 +4,7 @@
   "team_roles": [
     {
       "role": "Clause_Drafter",
-      "model": "gemma4:31b-dense",
+      "model": "gemini-2.5-flash",
       "goal": "Draft initial contract terms based on user requirements. Ensure precise legal language.",
       "system_prompt_file": "prompts/worker_agent.md",
       "temperature": 0.3,
@@ -12,7 +12,7 @@
     },
     {
       "role": "Compliance_Checker",
-      "model": "gemma4:31b-dense",
+      "model": "gemini-2.5-flash",
       "goal": "Verify draft against jurisdiction rules (GDPR/CCPA). Flag any non-compliant clauses.",
       "system_prompt_file": "prompts/worker_agent.md",
       "temperature": 0.2,
@@ -20,7 +20,7 @@
     },
     {
       "role": "Plain_Language_Translator",
-      "model": "gemma4:26b-moe",
+      "model": "gemini-2.0-flash",
       "goal": "Rewrite complex legal jargon into simple, accessible English while preserving legal accuracy.",
       "system_prompt_file": "prompts/worker_agent.md",
       "temperature": 0.5,
@@ -28,7 +28,7 @@
     },
     {
       "role": "Critic",
-      "model": "gemma4:31b-dense",
+      "model": "gemini-2.5-flash",
       "goal": "Ensure no contradictions, full compliance, and that plain-language version doesn't lose legal meaning.",
       "system_prompt_file": "prompts/critic_agent.md",
       "temperature": 0.2,

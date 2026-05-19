@@ -1,11 +1,11 @@
 """
-router.py: Model Router — supports Antigravity Proxy (OpenAI-compatible), Ollama, and Vertex AI.
-Priority: Antigravity Proxy → Local Ollama → Vertex AI (cloud).
+router.py: Model Router — supports Google Gemini API (primary) and Ollama (local fallback).
+Priority: Gemini API → Local Ollama.
 
-Antigravity proxy at localhost:8080 gives access to:
-  - gemini-3-flash, gemini-2.5-flash, gemini-2.5-flash-lite
-  - claude-opus-4-6-thinking, claude-sonnet-4-6
-  - gemini-3-1-flash-lite, gemini-2.5-flash-thinking
+Gemini free tier models:
+  - gemini-2.0-flash (15 RPM, 1M tokens/day)
+  - gemini-1.5-flash (15 RPM, 1M tokens/day)
+  - gemini-2.5-flash (10 RPM)
 """
 
 from __future__ import annotations
@@ -19,49 +19,57 @@ from loguru import logger
 
 # ── Configuration ─────────────────────────────────────────────────────
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-PROXY_BASE_URL = os.getenv("ANTIGRAVITY_PROXY_URL", "http://localhost:8080")
-PROXY_AUTH_TOKEN = os.getenv("ANTHROPIC_AUTH_TOKEN", "test")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # "gemini" or "ollama"
 COMPLEXITY_THRESHOLD = float(os.getenv("COMPLEXITY_THRESHOLD", "0.6"))
 
-# Default models via proxy
-PROXY_LIGHT_MODEL = os.getenv("PROXY_LIGHT_MODEL", "gemini-2.5-flash-lite")   # cheap & fast
-PROXY_MEDIUM_MODEL = os.getenv("PROXY_MEDIUM_MODEL", "gemini-3-flash")         # balanced
-PROXY_HEAVY_MODEL = os.getenv("PROXY_HEAVY_MODEL", "claude-opus-4-6-thinking") # heavy reasoning
+# Gemini model tiers
+GEMINI_LIGHT_MODEL = os.getenv("GEMINI_LIGHT_MODEL", "gemini-2.0-flash")
+GEMINI_HEAVY_MODEL = os.getenv("GEMINI_HEAVY_MODEL", "gemini-2.5-flash")
+
+# Gemini API base URL
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 
 class ModelRouter:
     """
     Routes LLM calls to the best available backend:
-    1. Antigravity Proxy (OpenAI-compatible, localhost:8080) — PRIMARY
-    2. Local Ollama — FALLBACK if proxy unavailable
-    3. Vertex AI — FUTURE (placeholder)
+    1. Google Gemini API — PRIMARY (free tier, no credit card)
+    2. Local Ollama — FALLBACK for local development
     """
 
     def __init__(self):
         self._ollama_available: Optional[bool] = None
-        self._proxy_available: Optional[bool] = None
-        self._vertex_available: Optional[bool] = None
+        self._gemini_available: Optional[bool] = None
 
     async def check_proxy(self) -> bool:
-        """Check if Antigravity proxy is reachable."""
+        """Check if Gemini API is reachable (replaces old proxy check)."""
+        return await self.check_gemini()
+
+    async def check_gemini(self) -> bool:
+        """Check if Gemini API key is set and working."""
+        if not GEMINI_API_KEY:
+            logger.warning("GEMINI_API_KEY not set. Gemini API disabled.")
+            self._gemini_available = False
+            return False
+
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
-                    f"{PROXY_BASE_URL}/v1/models",
-                    headers={"Authorization": f"Bearer {PROXY_AUTH_TOKEN}"},
+                    f"{GEMINI_API_BASE}/models?key={GEMINI_API_KEY}"
                 )
-                self._proxy_available = resp.status_code == 200
-                if self._proxy_available:
+                self._gemini_available = resp.status_code == 200
+                if self._gemini_available:
                     data = resp.json()
-                    model_ids = [m["id"] for m in data.get("data", [])]
-                    logger.info(f"Proxy available — {len(model_ids)} models: {model_ids[:5]}")
+                    model_names = [m.get("name", "") for m in data.get("models", [])[:5]]
+                    logger.info(f"Gemini API available — sample models: {model_names}")
         except Exception as e:
-            logger.warning(f"Proxy not reachable: {e}")
-            self._proxy_available = False
-        return self._proxy_available
+            logger.warning(f"Gemini API check failed: {e}")
+            self._gemini_available = False
+        return self._gemini_available
 
     async def check_ollama(self) -> bool:
-        """Check if Ollama is reachable."""
+        """Check if Ollama is reachable (local dev fallback)."""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
@@ -71,27 +79,23 @@ class ModelRouter:
         logger.info(f"Ollama available: {self._ollama_available}")
         return self._ollama_available
 
-    def _select_proxy_model(self, model: str, complexity: float) -> str:
+    def _select_gemini_model(self, model: str, complexity: float) -> str:
         """
-        Map a requested model name to an available proxy model.
-        If the model looks like an Ollama model (e.g. gemma4:e2b), remap to a proxy equivalent.
+        Map a requested model name to a Gemini model based on complexity.
+        If model is already a valid Gemini model, use it directly.
         """
-        # If it's already a proxy-native model, use it directly
-        proxy_models = {
-            "gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite",
-            "gemini-2.5-flash-thinking", "gemini-3-1-flash-lite", "gemini-3-1-pro",
-            "claude-opus-4-6-thinking", "claude-sonnet-4-6",
+        gemini_models = {
+            "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash",
+            "gemini-2.5-flash-lite", "gemini-1.5-pro",
         }
-        if model in proxy_models:
+        if model in gemini_models:
             return model
 
-        # Remap Ollama/Gemma models → proxy equivalents by complexity
+        # Route by complexity
         if complexity > COMPLEXITY_THRESHOLD:
-            return PROXY_HEAVY_MODEL
-        elif complexity > 0.3:
-            return PROXY_MEDIUM_MODEL
+            return GEMINI_HEAVY_MODEL
         else:
-            return PROXY_LIGHT_MODEL
+            return GEMINI_LIGHT_MODEL
 
     async def generate(
         self,
@@ -107,43 +111,36 @@ class ModelRouter:
         Uses Semantic Caching to avoid duplicate LLM calls.
         """
         start = time.time()
-        
-        # ── Phase 4: Semantic Caching ──
-        # Build embedding for the prompt (we use a simple string combination for now, 
-        # in a real setup we'd generate an actual vector embedding)
-        # Note: Since the real model generates an embedding, we simulate it or use 
-        # the simple string-based cache search structure.
-        # Actually, let's just use the exact prompt string for now if embedding isn't loaded.
+
+        # ── Semantic Caching ──
         full_prompt = f"{system_prompt}\n{user_prompt}"
-        
+
         from memory import semantic_cache
-        # If semantic cache is fully initialized with sentence-transformers we'd use it:
-        # But we can also use a simple exact-match cache as fallback if it's not.
         cached_result = await semantic_cache.search(full_prompt) if hasattr(semantic_cache, 'search') else None
-        
+
         if cached_result:
             logger.info("Semantic cache HIT! Returning cached result.")
             cached_result["latency_ms"] = (time.time() - start) * 1000
             cached_result["model_used"] += " (cached)"
             return cached_result
-            
+
         from rate_limiter import rate_limiter
         await rate_limiter.acquire_token()
 
         from security import security_shield
 
-        # ── Primary: Antigravity Proxy ─────────────────────────────────
-        if self._proxy_available:
-            proxy_model = self._select_proxy_model(model, complexity)
+        # ── Primary: Gemini API ───────────────────────────────────────
+        if self._gemini_available:
+            gemini_model = self._select_gemini_model(model, complexity)
             try:
-                result = await self._call_proxy(proxy_model, system_prompt, user_prompt, temperature, max_tokens)
+                result = await self._call_gemini(gemini_model, system_prompt, user_prompt, temperature, max_tokens)
                 result["latency_ms"] = (time.time() - start) * 1000
                 result["content"] = security_shield.sanitize_text(result.get("content", ""))
                 if hasattr(semantic_cache, 'store'):
                     await semantic_cache.store(full_prompt, result)
                 return result
             except Exception as e:
-                logger.warning(f"Proxy call failed ({proxy_model}), trying Ollama: {e}")
+                logger.warning(f"Gemini call failed ({gemini_model}), trying Ollama: {e}")
 
         # ── Fallback: Local Ollama ─────────────────────────────────────
         if self._ollama_available:
@@ -160,48 +157,64 @@ class ModelRouter:
         # ── Final fallback: error ──────────────────────────────────────
         logger.error("No LLM backend available!")
         return {
-            "content": "[ERROR: No LLM backend available. Ensure proxy (localhost:8080) or Ollama is running.]",
+            "content": "[ERROR: No LLM backend available. Set GEMINI_API_KEY or run Ollama locally.]",
             "model_used": model,
             "latency_ms": (time.time() - start) * 1000,
             "tokens": 0,
             "error": "No LLM backend available",
         }
 
-    async def _call_proxy(
+    async def _call_gemini(
         self, model: str, system_prompt: str, user_prompt: str,
         temperature: float, max_tokens: int
     ) -> dict[str, Any]:
-        """Call the Antigravity proxy (OpenAI-compatible /v1/chat/completions)."""
+        """Call Google Gemini API via REST (generateContent endpoint)."""
+        url = f"{GEMINI_API_BASE}/models/{model}:generateContent?key={GEMINI_API_KEY}"
+
         payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]
+                }
             ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": False,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+                "topP": 0.95,
+            },
         }
+
+        # Gemini supports systemInstruction for system prompts
+        if system_prompt:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_prompt}]
+            }
+            payload["contents"] = [
+                {
+                    "role": "user",
+                    "parts": [{"text": user_prompt}]
+                }
+            ]
+
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{PROXY_BASE_URL}/v1/chat/completions",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {PROXY_AUTH_TOKEN}",
-                    "Content-Type": "application/json",
-                },
-            )
+            resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
 
-        choices = data.get("choices", [])
-        content = choices[0]["message"]["content"] if choices else ""
-        usage = data.get("usage", {})
-        tokens = usage.get("total_tokens", 0)
+        # Parse Gemini response
+        candidates = data.get("candidates", [])
+        content = ""
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            content = "".join(p.get("text", "") for p in parts)
+
+        usage = data.get("usageMetadata", {})
+        tokens = usage.get("totalTokenCount", 0)
 
         return {
             "content": content,
-            "model_used": f"proxy:{model}",
+            "model_used": f"gemini:{model}",
             "tokens": tokens,
             "error": None,
         }
@@ -210,7 +223,7 @@ class ModelRouter:
         self, model: str, system_prompt: str, user_prompt: str,
         temperature: float, max_tokens: int
     ) -> dict[str, Any]:
-        """Call Ollama's local API."""
+        """Call Ollama's local API (fallback for local development)."""
         payload = {
             "model": model,
             "messages": [
@@ -238,29 +251,19 @@ class ModelRouter:
             "error": None,
         }
 
-    async def _call_vertex(
-        self, model: str, system_prompt: str, user_prompt: str,
-        temperature: float, max_tokens: int
-    ) -> dict[str, Any]:
-        """Call Vertex AI — placeholder for future integration."""
-        logger.info(f"Vertex AI call: {model} (not yet implemented)")
-        raise NotImplementedError("Vertex AI integration pending")
-
     async def list_local_models(self) -> list[str]:
-        """List models available — from proxy first, then Ollama."""
+        """List available models from Gemini or Ollama."""
         models = []
 
-        if self._proxy_available:
+        if self._gemini_available:
             try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.get(
-                        f"{PROXY_BASE_URL}/v1/models",
-                        headers={"Authorization": f"Bearer {PROXY_AUTH_TOKEN}"},
+                        f"{GEMINI_API_BASE}/models?key={GEMINI_API_KEY}"
                     )
                     if resp.status_code == 200:
                         data = resp.json()
-                        models = [m["id"] for m in data.get("data", [])]
-                        return models
+                        return [m.get("name", "").replace("models/", "") for m in data.get("models", [])]
             except Exception:
                 pass
 

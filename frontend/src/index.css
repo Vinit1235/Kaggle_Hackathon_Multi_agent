@@ -46,6 +46,7 @@
 
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* Spacing */
@@ -80,6 +81,10 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-text h1 {
+  font-family: var(--font-heading);
 }
 
 /* Subtle animated background */

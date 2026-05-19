@@ -37,7 +37,7 @@ class ContextCompactor:
         try:
             # Using light model for fast compaction
             result = await model_router.generate(
-                model="gemini-2.5-flash-lite", 
+                model="gemini-2.0-flash", 
                 system_prompt=system_prompt,
                 user_prompt=f"HISTORY TO SUMMARIZE:\n\n{history_text}",
                 temperature=0.3,

@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     # Initialize core services
     await taskbox.initialize()
     redis_ok = await memx.connect()
-    proxy_ok = await model_router.check_proxy()   # PRIMARY backend
-    ollama_ok = await model_router.check_ollama()  # FALLBACK backend
+    gemini_ok = await model_router.check_gemini()   # PRIMARY backend (Gemini API)
+    ollama_ok = await model_router.check_ollama()    # FALLBACK backend (local)
     await semantic_cache.initialize()
     
     from security import security_shield
@@ -53,9 +53,10 @@ async def lifespan(app: FastAPI):
     config_loader.load_user_preferences()
     config_loader.load_constitution()
 
-    logger.info(f"  Proxy:  {'✅' if proxy_ok else '⚠️ not available'}")
-    logger.info(f"  Ollama: {'✅' if ollama_ok else '⚠️ not available (fallback)'}")
-    logger.info(f"  Redis:  {'✅' if redis_ok else '⚠️ fallback mode'}")
+    logger.info(f"  Gemini: {'✅' if gemini_ok else '⚠️ not available (set GEMINI_API_KEY)'}")
+    logger.info(f"  Ollama: {'✅' if ollama_ok else '⚠️ not available (local fallback)'}")
+    logger.info(f"  Redis:  {'✅' if redis_ok else '⚠️ in-memory fallback'}")
+    logger.info(f"  DB:     {'✅ Supabase' if taskbox._use_postgres else '✅ SQLite'}")
     logger.info(f"  Domains: {config_loader.list_available_domains()}")
     logger.info("✅ AI Agency Platform ready!")
 
@@ -97,10 +98,10 @@ except ImportError:
 async def health_check():
     """System health check."""
     return HealthCheck(
-        proxy_connected=model_router._proxy_available or False,
+        gemini_connected=model_router._gemini_available or False,
         ollama_connected=model_router._ollama_available or False,
         redis_connected=memx.is_connected,
-        db_initialized=taskbox._db is not None,
+        db_initialized=taskbox._pool is not None or taskbox._db is not None,
     )
 
 
